@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "385203742580",
+    "project_id": "wednow-5192d",
+    "storage_bucket": "wednow-5192d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:385203742580:android:ae955a82c7a6387d3bae21",
+        "android_client_info": {
+          "package_name": "com.wednowapp.wednow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNFPt6QYe6dt-UM2Ls9ttRL6W5W1682ik"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
