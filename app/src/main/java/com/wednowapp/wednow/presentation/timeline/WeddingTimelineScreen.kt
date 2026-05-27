@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -44,6 +43,7 @@ import androidx.compose.material.icons.filled.LocalBar
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wednowapp.wednow.R
+import com.wednowapp.wednow.domain.model.TimelineEventData
 import com.wednowapp.wednow.domain.model.Wedding
 import com.wednowapp.wednow.ui.components.WedNowErrorScreen
 import com.wednowapp.wednow.ui.components.WedNowLoadingScreen
@@ -123,53 +124,32 @@ data class TimelineEvent(
     val status: EventStatus,
 )
 
-// TODO: replace with data from Firestore once the timeline collection is wired
-private val sampleTimeline = listOf(
-    TimelineEvent(
-        id = 0, time = "14:00", title = "Guest Arrival",
-        description = "The venue opens its doors. Welcome to our special day — we are so glad you are here.",
-        icon = Icons.Default.Groups, status = EventStatus.COMPLETED,
-    ),
-    TimelineEvent(
-        id = 1, time = "14:30", title = "Welcome Drinks",
-        description = "Enjoy champagne and canapés on the garden terrace while the venue fills with love.",
-        icon = Icons.Default.WineBar, status = EventStatus.COMPLETED,
-    ),
-    TimelineEvent(
-        id = 2, time = "15:00", title = "Ceremony Begins",
-        description = "The wedding ceremony starts in the garden chapel. Please take your seats.",
-        icon = Icons.Default.Favorite, status = EventStatus.CURRENT,
-    ),
-    TimelineEvent(
-        id = 3, time = "16:00", title = "Cocktail Hour",
-        description = "Celebrate with cocktails and light music while we capture memories.",
-        icon = Icons.Default.LocalBar, status = EventStatus.UPCOMING,
-    ),
-    TimelineEvent(
-        id = 4, time = "18:00", title = "Dinner Service",
-        description = "A three-course dinner awaits in the grand ballroom. Please find your seat.",
-        icon = Icons.Default.Restaurant, status = EventStatus.UPCOMING,
-    ),
-    TimelineEvent(
-        id = 5, time = "19:30", title = "First Dance",
-        description = "Join us as we share our first dance as husband and wife.",
-        icon = Icons.Default.MusicNote, status = EventStatus.UPCOMING,
-    ),
-    TimelineEvent(
-        id = 6, time = "20:30", title = "Cake Cutting",
-        description = "Gather around as we cut the wedding cake and raise a toast to the future.",
-        icon = Icons.Default.Cake, status = EventStatus.UPCOMING,
-    ),
-    TimelineEvent(
-        id = 7, time = "21:30", title = "After Party",
-        description = "Dance the night away with live music, entertainment, and open bar.",
-        icon = Icons.Default.Celebration, status = EventStatus.UPCOMING,
-    ),
-    TimelineEvent(
-        id = 8, time = "23:00", title = "Farewell",
-        description = "As our magical evening draws to a close — thank you for celebrating with us.",
-        icon = Icons.Default.NightsStay, status = EventStatus.UPCOMING,
-    ),
+private fun iconNameToVector(iconName: String): ImageVector = when (iconName.lowercase()) {
+    "groups" -> Icons.Default.Groups
+    "wine_bar" -> Icons.Default.WineBar
+    "favorite" -> Icons.Default.Favorite
+    "local_bar" -> Icons.Default.LocalBar
+    "restaurant" -> Icons.Default.Restaurant
+    "music_note" -> Icons.Default.MusicNote
+    "cake" -> Icons.Default.Cake
+    "celebration" -> Icons.Default.Celebration
+    "nights_stay" -> Icons.Default.NightsStay
+    "calendar" -> Icons.Default.CalendarToday
+    "schedule" -> Icons.Default.Schedule
+    else -> Icons.Default.Celebration
+}
+
+private fun TimelineEventData.toTimelineEvent(id: Int): TimelineEvent = TimelineEvent(
+    id = id,
+    time = time,
+    title = title,
+    description = description.ifBlank { null },
+    icon = iconNameToVector(iconName),
+    status = when (status.lowercase()) {
+        "completed" -> EventStatus.COMPLETED
+        "current" -> EventStatus.CURRENT
+        else -> EventStatus.UPCOMING
+    },
 )
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -187,11 +167,14 @@ fun WeddingTimelineScreen(
             message = (state as TimelineState.Error).message,
             onRetry = viewModel::retry,
         )
-        is TimelineState.Success -> TimelineContent(
-            wedding = (state as TimelineState.Success).wedding,
-            events  = sampleTimeline,
-            onBack  = onBack,
-        )
+        is TimelineState.Success -> {
+            val s = state as TimelineState.Success
+            TimelineContent(
+                wedding = s.wedding,
+                events = s.wedding.timeline.mapIndexed { i, it -> it.toTimelineEvent(i) },
+                onBack = onBack,
+            )
+        }
     }
 }
 
@@ -237,7 +220,9 @@ private fun TimelineContent(
 
         LazyColumn(
             state          = listState,
-            modifier       = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
             contentPadding = PaddingValues(bottom = 72.dp),
         ) {
             item {
@@ -367,7 +352,12 @@ private fun OrnamentDivider() {
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Box(Modifier.weight(1f).height(0.5.dp).background(WarmGray200))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(WarmGray200)
+        )
         Spacer(Modifier.width(Spacing.sm))
         Text("✦", style = MaterialTheme.typography.labelSmall, color = Gold.copy(alpha = 0.65f))
         Spacer(Modifier.width(Spacing.xs))
@@ -375,7 +365,12 @@ private fun OrnamentDivider() {
         Spacer(Modifier.width(Spacing.xs))
         Text("✦", style = MaterialTheme.typography.labelSmall, color = Gold.copy(alpha = 0.65f))
         Spacer(Modifier.width(Spacing.sm))
-        Box(Modifier.weight(1f).height(0.5.dp).background(WarmGray200))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(WarmGray200)
+        )
     }
 }
 
@@ -472,8 +467,8 @@ private fun TimelineItem(
             modifier = Modifier
                 .weight(1f)
                 .padding(
-                    end    = Spacing.screenHorizontal,
-                    top    = 4.dp,
+                    end = Spacing.screenHorizontal,
+                    top = 4.dp,
                     bottom = if (isLast) 0.dp else 8.dp,
                 ),
         ) {
@@ -556,8 +551,8 @@ fun IndicatorColumn(
                     .background(
                         when {
                             isCompleted -> Gold.copy(alpha = 0.48f)
-                            isCurrent   -> BlushDeep.copy(alpha = 0.42f)
-                            else        -> WarmGray200
+                            isCurrent -> BlushDeep.copy(alpha = 0.42f)
+                            else -> WarmGray200
                         }
                     )
                     .align(Alignment.TopCenter),
@@ -573,7 +568,7 @@ fun IndicatorColumn(
                     .background(
                         when {
                             isCompleted -> Gold.copy(alpha = 0.35f)
-                            else        -> WarmGray200
+                            else -> WarmGray200
                         }
                     )
                     .align(Alignment.BottomCenter),
@@ -668,9 +663,9 @@ fun EventCard(
                     .weight(1f)
                     .alpha(if (isCompleted) 0.58f else 1f)
                     .padding(
-                        start  = if (isCurrent) 14.dp else Spacing.cardMd,
-                        end    = Spacing.cardMd,
-                        top    = Spacing.cardMd,
+                        start = if (isCurrent) 14.dp else Spacing.cardMd,
+                        end = Spacing.cardMd,
+                        top = Spacing.cardMd,
                         bottom = Spacing.cardMd,
                     ),
             ) {

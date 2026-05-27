@@ -1,4 +1,4 @@
-package com.wednowapp.wednow.presentation.home
+package com.wednowapp.wednow.presentation.share
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -16,52 +16,45 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed class ShareInvitationState {
+    object Loading : ShareInvitationState()
+    data class Success(val wedding: Wedding, val isPrivileged: Boolean) : ShareInvitationState()
+    data class Error(val message: String) : ShareInvitationState()
+}
+
 @HiltViewModel
-class HomeViewModel @Inject constructor(
+class ShareInvitationViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getWeddingByIdUseCase: GetWeddingByIdUseCase,
     private val getCurrentGuestUseCase: GetCurrentGuestUseCase,
 ) : ViewModel() {
 
-    val weddingId: String = checkNotNull(savedStateHandle[Screen.WeddingHome.ARG])
+    val weddingId: String = checkNotNull(savedStateHandle[Screen.ShareInvitation.ARG])
 
-    private val _state = MutableStateFlow<WeddingDetailState>(WeddingDetailState.Loading)
-    val state: StateFlow<WeddingDetailState> = _state.asStateFlow()
+    private val _state = MutableStateFlow<ShareInvitationState>(ShareInvitationState.Loading)
+    val state: StateFlow<ShareInvitationState> = _state.asStateFlow()
 
     init {
-        loadWedding()
+        loadData()
     }
 
-    fun retry() {
-        _state.value = WeddingDetailState.Loading
-        loadWedding()
-    }
-
-    private fun loadWedding() {
+    private fun loadData() {
         viewModelScope.launch {
             getWeddingByIdUseCase(weddingId)
                 .onSuccess { wedding ->
                     if (wedding == null) {
-                        _state.value = WeddingDetailState.Error("Wedding not found")
+                        _state.value = ShareInvitationState.Error("Wedding not found")
                         return@onSuccess
                     }
                     val guest =
                         runCatching { getCurrentGuestUseCase(weddingId).first() }.getOrNull()
                     val isPrivileged =
                         guest?.role == GuestRole.ADMIN || guest?.role == GuestRole.COADMIN
-                    _state.value = WeddingDetailState.Success(wedding, isPrivileged)
+                    _state.value = ShareInvitationState.Success(wedding, isPrivileged)
                 }
-                .onFailure { error ->
-                    _state.value = WeddingDetailState.Error(
-                        error.message ?: "Failed to load wedding details"
-                    )
+                .onFailure {
+                    _state.value = ShareInvitationState.Error(it.message ?: "Failed to load")
                 }
         }
     }
-}
-
-sealed class WeddingDetailState {
-    object Loading : WeddingDetailState()
-    data class Success(val wedding: Wedding, val isPrivileged: Boolean) : WeddingDetailState()
-    data class Error(val message: String) : WeddingDetailState()
 }

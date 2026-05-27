@@ -16,7 +16,11 @@ class CreateWeddingUseCase @Inject constructor(
         name: String,
         date: String,
         location: String,
-        adminGuestId: String
+        adminGuestId: String,
+        coverImageUrl: String = "",
+        menu: List<com.wednowapp.wednow.domain.model.MenuCourseData> = emptyList(),
+        dressCode: com.wednowapp.wednow.domain.model.DressCodeData = com.wednowapp.wednow.domain.model.DressCodeData(),
+        timeline: List<com.wednowapp.wednow.domain.model.TimelineEventData> = emptyList(),
     ): Result<String> {
         val weddingId = weddingRepository.createWedding(
             Wedding(
@@ -24,7 +28,11 @@ class CreateWeddingUseCase @Inject constructor(
                 date = date,
                 location = location,
                 adminGuestId = adminGuestId,
-                createdAt = System.currentTimeMillis()
+                createdAt = System.currentTimeMillis(),
+                coverImageUrl = coverImageUrl,
+                menu = menu,
+                dressCode = dressCode,
+                timeline = timeline,
             )
         ).getOrElse { return Result.failure(it) }
 

@@ -3,7 +3,7 @@ package com.wednowapp.wednow.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ── Soft Luxury Palette ───────────────────────────────────────────────────────
-val Ivory         = Color(0xFFFDFAF5)
+val Ivory = Color(0xFFFDFAF6)
 val WarmWhite     = Color(0xFFFAF8F4)
 val Champagne     = Color(0xFFF5E6C8)
 val ChampagneLight= Color(0xFFFAF0DC)
@@ -25,6 +25,12 @@ val WarmGray600   = Color(0xFF6E665E)
 val WarmGray700   = Color(0xFF4E4840)
 val WarmGray800   = Color(0xFF322E28)
 val WarmGray900   = Color(0xFF1A1816)
+
+// ── Black Scale ───────────────────────────────────────────────────────────────
+val RichBlack = Color(0xFF0D0D0D)   // headings, primary text
+val SoftBlack = Color(0xFF1C1C1C)   // body text
+val MutedBlack = Color(0xFF3A3A3A)   // secondary / label text
+val SubtleBlack = Color(0xFF5C5C5C)   // hints, captions, disabled
 
 // ── Semantic ──────────────────────────────────────────────────────────────────
 val ErrorRose     = Color(0xFFBA3A3A)
@@ -48,11 +54,11 @@ val LightTertiaryContainer   = Color(0xFFD8EED8)
 val LightOnTertiaryContainer = Color(0xFF1A3A1E)
 
 val LightBackground    = Ivory
-val LightOnBackground  = WarmGray900
+val LightOnBackground = RichBlack
 val LightSurface       = WarmWhite
-val LightOnSurface     = WarmGray900
+val LightOnSurface = RichBlack
 val LightSurfaceVariant    = WarmGray100
-val LightOnSurfaceVariant  = WarmGray600
+val LightOnSurfaceVariant = MutedBlack
 val LightOutline           = WarmGray300
 val LightOutlineVariant    = WarmGray200
 

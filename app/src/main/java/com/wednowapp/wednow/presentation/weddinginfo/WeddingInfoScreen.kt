@@ -8,25 +8,85 @@ import android.net.Uri
 import android.provider.CalendarContract
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,59 +94,54 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.wednowapp.wednow.domain.model.DressCodeData
+import com.wednowapp.wednow.domain.model.MenuCourseData
+import com.wednowapp.wednow.domain.model.TimelineEventData
 import com.wednowapp.wednow.domain.model.Wedding
 import com.wednowapp.wednow.ui.components.WedNowErrorScreen
 import com.wednowapp.wednow.ui.components.WedNowLoadingScreen
-import com.wednowapp.wednow.ui.theme.*
+import com.wednowapp.wednow.ui.theme.BlushDeep
+import com.wednowapp.wednow.ui.theme.BlushLight
+import com.wednowapp.wednow.ui.theme.Champagne
+import com.wednowapp.wednow.ui.theme.ChampagneLight
+import com.wednowapp.wednow.ui.theme.Gold
+import com.wednowapp.wednow.ui.theme.GoldDeep
+import com.wednowapp.wednow.ui.theme.Ivory
+import com.wednowapp.wednow.ui.theme.Spacing
+import com.wednowapp.wednow.ui.theme.WarmGray100
+import com.wednowapp.wednow.ui.theme.WarmGray200
+import com.wednowapp.wednow.ui.theme.WarmGray300
+import com.wednowapp.wednow.ui.theme.WarmGray400
+import com.wednowapp.wednow.ui.theme.WarmGray50
+import com.wednowapp.wednow.ui.theme.WarmGray500
+import com.wednowapp.wednow.ui.theme.WarmGray600
+import com.wednowapp.wednow.ui.theme.WarmGray700
+import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Locale
 
-// ── Sample data (wire from model when Wedding fields are extended) ─────────────
+private data class ColorSwatch(val color: Color, val label: String, val hex: String)
 
-private data class ScheduleItem(val time: String, val title: String, val status: String)
-// status: "completed" | "current" | "upcoming"
+private fun hexToColor(hex: String): Color = try {
+    Color(android.graphics.Color.parseColor(hex))
+} catch (_: Exception) {
+    Color.LightGray
+}
 
-private val sampleSchedule = listOf(
-    ScheduleItem("14:00", "Guest Arrival",   "completed"),
-    ScheduleItem("14:30", "Welcome Drinks",  "completed"),
-    ScheduleItem("15:00", "Ceremony Begins", "current"),
-    ScheduleItem("16:00", "Cocktail Hour",   "upcoming"),
-    ScheduleItem("18:00", "Dinner Service",  "upcoming"),
-    ScheduleItem("19:30", "First Dance",     "upcoming"),
-    ScheduleItem("20:30", "Cake Cutting",    "upcoming"),
-    ScheduleItem("21:30", "After Party",     "upcoming"),
-    ScheduleItem("23:00", "Farewell",        "upcoming"),
-)
-
-private data class MenuCategory(val name: String, val emoji: String, val items: List<String>)
-
-private val sampleMenu = listOf(
-    MenuCategory("Starter",     "🥗", listOf("Bruschetta", "Caesar Salad", "Tomato Bisque", "Shrimp Cocktail")),
-    MenuCategory("Main Course", "🍽", listOf("Chicken Marsala", "Pan-Seared Salmon", "Vegan Risotto", "Beef Tenderloin")),
-    MenuCategory("Dessert",     "🍰", listOf("Wedding Cake", "French Macarons", "Crème Brûlée")),
-    MenuCategory("Drinks",      "🥂", listOf("Champagne Toast", "House Wine", "Signature Cocktail", "Mocktails")),
-)
-
-private data class ColorSwatch(val color: Color, val label: String)
-
-private val dressCodeColors = listOf(
-    ColorSwatch(Color(0xFFFDFAF5), "Ivory"),
-    ColorSwatch(Color(0xFFF5E6C8), "Champagne"),
-    ColorSwatch(Color(0xFFD4848A), "Dusty Rose"),
-    ColorSwatch(Color(0xFF8C7B6E), "Taupe"),
-)
-private const val DRESS_CODE_STYLE  = "Semi-Formal"
-private val dressCodeDo   = listOf("Cocktail dress", "Tailored suit", "Elegant midi dress")
-private val dressCodeDont = listOf("Jeans", "White dress", "Sportswear")
+private enum class ActiveEditor { DATE, VENUE, MENU, DRESS_CODE, TIMELINE }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -96,21 +151,40 @@ fun WeddingInfoScreen(
     viewModel: WeddingInfoViewModel = hiltViewModel(),
 ) {
     val state        by viewModel.state.collectAsStateWithLifecycle()
+    val isPrivileged by viewModel.isPrivileged.collectAsStateWithLifecycle()
+    val editMode by viewModel.editMode.collectAsStateWithLifecycle()
+    val draft by viewModel.draft.collectAsStateWithLifecycle()
+    val saveState by viewModel.saveState.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
     val scope        = rememberCoroutineScope()
     val context      = LocalContext.current
+
+    LaunchedEffect(saveState) {
+        when (val s = saveState) {
+            is SaveState.Saved -> snackbarHost.showSnackbar("Changes saved ✓")
+            is SaveState.Error -> snackbarHost.showSnackbar("Error: ${s.message}")
+            else -> Unit
+        }
+    }
 
     when (val s = state) {
         is WeddingInfoState.Loading -> WedNowLoadingScreen()
         is WeddingInfoState.Error   -> WedNowErrorScreen(message = s.message, onRetry = viewModel::retry)
         is WeddingInfoState.Success -> WeddingInfoContent(
-            wedding      = s.wedding,
-            onBack       = onBack,
-            onCopyCode   = {
+            wedding = draft ?: s.wedding,
+            isPrivileged = isPrivileged,
+            editMode = editMode,
+            saveState = saveState,
+            onBack = onBack,
+            onCopyCode = {
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("Wedding Code", s.wedding.id))
                 scope.launch { snackbarHost.showSnackbar("Code copied ✓") }
             },
+            onEnterEditMode = viewModel::enterEditMode,
+            onExitEditMode = viewModel::exitEditMode,
+            onUpdateDraft = viewModel::updateDraft,
+            onSave = viewModel::saveChanges,
             snackbarHost = snackbarHost,
         )
     }
@@ -121,17 +195,34 @@ fun WeddingInfoScreen(
 @Composable
 private fun WeddingInfoContent(
     wedding: Wedding,
+    isPrivileged: Boolean,
+    editMode: Boolean,
+    saveState: SaveState,
     onBack: () -> Unit,
     onCopyCode: () -> Unit,
+    onEnterEditMode: () -> Unit,
+    onExitEditMode: () -> Unit,
+    onUpdateDraft: (Wedding) -> Unit,
+    onSave: () -> Unit,
     snackbarHost: SnackbarHostState,
 ) {
     val context = LocalContext.current
+    var activeEditor by remember { mutableStateOf<ActiveEditor?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(ChampagneLight.copy(alpha = 0.5f), Ivory, Ivory, Ivory)))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            ChampagneLight.copy(alpha = 0.5f),
+                            Ivory,
+                            Ivory,
+                            Ivory
+                        )
+                    )
+                )
         )
         WeddingInfoFlorals()
 
@@ -139,12 +230,11 @@ private fun WeddingInfoContent(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
-            contentPadding = PaddingValues(bottom = 56.dp),
+            contentPadding = PaddingValues(bottom = 140.dp),
         ) {
             item { InfoHeader(wedding = wedding, onBack = onBack) }
 
             item {
-                // ── Main event info card ──────────────────────────────────────
                 Card(
                     modifier  = Modifier
                         .fillMaxWidth()
@@ -154,15 +244,38 @@ private fun WeddingInfoContent(
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        DateSection(wedding = wedding, context = context)
+                        EditSectionWrapper(
+                            editMode = editMode,
+                            onEdit = { activeEditor = ActiveEditor.DATE },
+                        ) { DateSection(wedding = wedding, context = context) }
+
                         SectionDivider()
-                        VenueSection(wedding = wedding, context = context)
+
+                        EditSectionWrapper(
+                            editMode = editMode,
+                            onEdit = { activeEditor = ActiveEditor.VENUE },
+                        ) { VenueSection(wedding = wedding, context = context) }
+
                         SectionDivider()
-                        MenuSection()
+
+                        EditSectionWrapper(
+                            editMode = editMode,
+                            onEdit = { activeEditor = ActiveEditor.MENU },
+                        ) { MenuSection(wedding.menu) }
+
                         SectionDivider()
-                        DressCodeSection()
+
+                        EditSectionWrapper(
+                            editMode = editMode,
+                            onEdit = { activeEditor = ActiveEditor.DRESS_CODE },
+                        ) { DressCodeSection(wedding.dressCode) }
+
                         SectionDivider()
-                        ScheduleSection()
+
+                        EditSectionWrapper(
+                            editMode = editMode,
+                            onEdit = { activeEditor = ActiveEditor.TIMELINE },
+                        ) { ScheduleSection(wedding.timeline) }
                     }
                 }
             }
@@ -178,6 +291,22 @@ private fun WeddingInfoContent(
             }
         }
 
+        // ── Edit mode floating action bar ─────────────────────────────────────
+        AnimatedVisibility(
+            visible = isPrivileged,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            EditModeBar(
+                editMode = editMode,
+                saveState = saveState,
+                onEnter = onEnterEditMode,
+                onDiscard = onExitEditMode,
+                onSave = onSave,
+            )
+        }
+
         SnackbarHost(
             hostState = snackbarHost,
             modifier  = Modifier
@@ -186,68 +315,1355 @@ private fun WeddingInfoContent(
                 .padding(bottom = Spacing.sm),
         )
     }
+
+    // ── Bottom sheet editors ──────────────────────────────────────────────────
+    when (activeEditor) {
+        ActiveEditor.DATE -> DateEditorSheet(
+            current = wedding.date,
+            onUpdate = { onUpdateDraft(wedding.copy(date = it)) },
+            onDismiss = { activeEditor = null },
+        )
+
+        ActiveEditor.VENUE -> VenueEditorSheet(
+            current = wedding.location,
+            onUpdate = { onUpdateDraft(wedding.copy(location = it)) },
+            onDismiss = { activeEditor = null },
+        )
+
+        ActiveEditor.MENU -> MenuEditorSheet(
+            menu = wedding.menu,
+            onUpdate = { onUpdateDraft(wedding.copy(menu = it)) },
+            onDismiss = { activeEditor = null },
+        )
+
+        ActiveEditor.DRESS_CODE -> DressCodeEditorSheet(
+            dressCode = wedding.dressCode,
+            onUpdate = { onUpdateDraft(wedding.copy(dressCode = it)) },
+            onDismiss = { activeEditor = null },
+        )
+
+        ActiveEditor.TIMELINE -> TimelineEditorSheet(
+            timeline = wedding.timeline,
+            onUpdate = { onUpdateDraft(wedding.copy(timeline = it)) },
+            onDismiss = { activeEditor = null },
+        )
+
+        null -> Unit
+    }
 }
 
-// ── Header ────────────────────────────────────────────────────────────────────
+// ── Edit mode bar ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun InfoHeader(wedding: Wedding, onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // Back button row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
+private fun EditModeBar(
+    editMode: Boolean,
+    saveState: SaveState,
+    onEnter: () -> Unit,
+    onDiscard: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val isSaving = saveState is SaveState.Saving
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+    ) {
+        AnimatedVisibility(!editMode) {
+            // Entry pill
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                GoldDeep.copy(alpha = 0.92f),
+                                Gold.copy(alpha = 0.92f)
+                            )
+                        )
+                    )
+                    .clickable(onClick = onEnter),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Default.Edit, null, Modifier.size(16.dp), Color.White)
+                    Text(
+                        "Update Wedding Details",
+                        style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.5.sp),
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(editMode) {
+            // Active edit actions row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                // Discard
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(Color.White.copy(alpha = 0.92f))
+                        .border(0.5.dp, WarmGray200, RoundedCornerShape(26.dp))
+                        .clickable(enabled = !isSaving, onClick = onDiscard),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Discard",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WarmGray600,
+                    )
+                }
+                // Save
+                Box(
+                    modifier = Modifier
+                        .weight(2f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
+                        .clickable(enabled = !isSaving, onClick = onSave),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            Modifier.size(20.dp),
+                            Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(Icons.Default.Check, null, Modifier.size(16.dp), Color.White)
+                            Text(
+                                "Save Changes",
+                                style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.5.sp),
+                                color = Color.White,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Edit section wrapper ──────────────────────────────────────────────────────
+
+@Composable
+private fun EditSectionWrapper(
+    editMode: Boolean,
+    onEdit: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val borderAlpha by animateFloatAsState(if (editMode) 1f else 0f, tween(300))
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Champagne glow border when in edit mode
+        if (editMode) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                Gold.copy(alpha = 0.25f * borderAlpha),
+                                Champagne.copy(alpha = 0.5f * borderAlpha),
+                                Gold.copy(alpha = 0.25f * borderAlpha),
+                            )
+                        ),
+                        shape = RoundedCornerShape(0.dp),
+                    )
+                    .background(Gold.copy(alpha = 0.015f * borderAlpha))
+            )
+        }
+
+        content()
+
+        // Floating pencil icon
+        AnimatedVisibility(
+            visible = editMode,
+            enter = fadeIn(tween(200)) + expandVertically(),
+            exit = fadeOut(tween(150)) + shrinkVertically(),
+            modifier = Modifier.align(Alignment.TopEnd),
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .padding(end = 12.dp, top = 10.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
-                    .background(Color.White)
-                    .clickable(onClick = onBack),
+                    .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
+                    .clickable(onClick = onEdit),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    modifier = Modifier.size(20.dp),
-                    tint     = WarmGray600,
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit",
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
+    }
+}
+
+// ── Elegant bottom sheet shell ────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ElegantBottomSheetEditor(
+    title: String,
+    subtitle: String,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Ivory,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .width(36.dp)
+                    .height(3.dp)
+                    .clip(CircleShape)
+                    .background(WarmGray200),
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.screenHorizontal)
+                .navigationBarsPadding()
+                .padding(bottom = Spacing.xl),
+        ) {
+            // Sheet header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = WarmGray800,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WarmGray400,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "Done",
+                        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
+                        color = Color.White,
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color.Transparent, Gold.copy(alpha = 0.3f), Color.Transparent)
+                        )
+                    ),
+            )
+            Spacer(Modifier.height(Spacing.md))
+
+            content()
+        }
+    }
+}
+
+// ── Editor text field ─────────────────────────────────────────────────────────
+
+@Composable
+private fun EditorTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String = "",
+    singleLine: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, style = MaterialTheme.typography.bodySmall) },
+        placeholder = {
+            Text(
+                placeholder,
+                style = MaterialTheme.typography.bodySmall,
+                color = WarmGray300
+            )
+        },
+        singleLine = singleLine,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Gold,
+            unfocusedBorderColor = WarmGray200,
+            focusedLabelColor = Gold,
+            unfocusedLabelColor = WarmGray400,
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+        ),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = WarmGray800),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+    )
+}
+
+// ── Date editor ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun DateEditorSheet(
+    current: String,
+    onUpdate: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(current) }
+
+    ElegantBottomSheetEditor(
+        title = "Wedding Date",
+        subtitle = "When will you celebrate your love?",
+        onDismiss = {
+            onUpdate(text)
+            onDismiss()
+        },
+    ) {
+        EditorTextField(
+            value = text,
+            onValueChange = { text = it; onUpdate(it) },
+            label = "Date",
+            placeholder = "e.g. June 14, 2025",
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        Text(
+            "Accepted formats: June 14, 2025 · 14/06/2025 · 2025-06-14",
+            style = MaterialTheme.typography.bodySmall,
+            color = WarmGray300,
+        )
+    }
+}
+
+// ── Venue editor ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun VenueEditorSheet(
+    current: String,
+    onUpdate: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(current) }
+
+    ElegantBottomSheetEditor(
+        title = "Venue",
+        subtitle = "Where will the magic happen?",
+        onDismiss = {
+            onUpdate(text)
+            onDismiss()
+        },
+    ) {
+        EditorTextField(
+            value = text,
+            onValueChange = { text = it; onUpdate(it) },
+            label = "Location",
+            placeholder = "e.g. The Grand Ballroom, Istanbul",
+            singleLine = false,
+        )
+    }
+}
+
+// ── Menu editor ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun MenuEditorSheet(
+    menu: List<MenuCourseData>,
+    onUpdate: (List<MenuCourseData>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var courses by remember { mutableStateOf(menu.toMutableList().map { it.copy() }) }
+
+    fun push() = onUpdate(courses.toList())
+
+    ElegantBottomSheetEditor(
+        title = "Wedding Menu",
+        subtitle = "Curate your dining experience",
+        onDismiss = { push(); onDismiss() },
+    ) {
+        MenuAccordionEditor(
+            courses = courses,
+            onChange = { courses = it.toMutableList(); push() },
+        )
+    }
+}
+
+@Composable
+private fun MenuAccordionEditor(
+    courses: List<MenuCourseData>,
+    onChange: (List<MenuCourseData>) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        courses.forEachIndexed { idx, course ->
+            MenuCourseEditorCard(
+                course = course,
+                onUpdate = { updated ->
+                    onChange(courses.toMutableList().also { it[idx] = updated })
+                },
+                onDelete = {
+                    onChange(courses.toMutableList().also { it.removeAt(idx) })
+                },
+            )
+        }
+
+        // Add course button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .border(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(
+                            Gold.copy(alpha = 0.4f),
+                            Champagne,
+                            Gold.copy(alpha = 0.4f)
+                        )
+                    ),
+                    RoundedCornerShape(16.dp)
+                )
+                .clickable {
+                    onChange(
+                        courses + MenuCourseData(
+                            courseName = "New Course",
+                            emoji = "🍽️",
+                            items = emptyList(),
+                        )
+                    )
+                }
+                .padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.Default.Add, null, Modifier.size(16.dp), Gold)
+                Text(
+                    "Add Course",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Gold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuCourseEditorCard(
+    course: MenuCourseData,
+    onUpdate: (MenuCourseData) -> Unit,
+    onDelete: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var newItem by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(0.5.dp, WarmGray100, RoundedCornerShape(16.dp)),
+    ) {
+        // Course header row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = Spacing.md, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            // Emoji picker (tap to cycle)
+            val emojiOptions = listOf("🥗", "🍽️", "🥩", "🐟", "🍰", "🍷", "🥂", "☕", "🎂", "🍹")
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(ChampagneLight)
+                    .border(0.5.dp, Gold.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                    .clickable {
+                        val next = (emojiOptions.indexOf(course.emoji) + 1).coerceIn(
+                            0,
+                            emojiOptions.lastIndex
+                        )
+                        onUpdate(course.copy(emoji = emojiOptions[next]))
+                    }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Text(course.emoji.ifBlank { "🍽️" }, fontSize = 16.sp)
+            }
+
+            OutlinedTextField(
+                value = course.courseName,
+                onValueChange = { onUpdate(course.copy(courseName = it)) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = WarmGray800,
+                    fontWeight = FontWeight.Medium
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                ),
+                shape = RoundedCornerShape(8.dp),
+            )
+
+            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.DeleteOutline, null, Modifier.size(16.dp), WarmGray300)
+            }
+
+            Icon(
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                null, Modifier.size(18.dp), WarmGray300,
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md)
+                    .padding(bottom = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                course.items.forEachIndexed { i, item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .background(Gold.copy(alpha = 0.6f), CircleShape),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            item,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = WarmGray700,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(
+                            onClick = {
+                                onUpdate(
+                                    course.copy(
+                                        items = course.items.toMutableList()
+                                            .also { it.removeAt(i) })
+                                )
+                            },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(Icons.Default.Close, null, Modifier.size(12.dp), WarmGray300)
+                        }
+                    }
+                }
+                // Add item row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = newItem,
+                        onValueChange = { newItem = it },
+                        placeholder = {
+                            Text(
+                                "Add dish…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WarmGray300
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = WarmGray100,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                        ),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (newItem.isNotBlank()) Gold else WarmGray100)
+                            .clickable(enabled = newItem.isNotBlank()) {
+                                onUpdate(course.copy(items = course.items + newItem.trim()))
+                                newItem = ""
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            null,
+                            Modifier.size(16.dp),
+                            if (newItem.isNotBlank()) Color.White else WarmGray300
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Dress code editor ─────────────────────────────────────────────────────────
+
+private val kDressStyles = listOf(
+    "Black Tie", "Formal", "Cocktail", "Semi-Formal",
+    "Smart Casual", "Garden Party", "Beach Formal", "Casual Chic",
+)
+
+private val kWeddingPalette = listOf(
+    "#F5E6C8" to "Champagne",
+    "#FADADD" to "Rose",
+    "#E8D5B7" to "Ivory",
+    "#B8975A" to "Gold",
+    "#8C9BAD" to "Dusty Blue",
+    "#C4A7C7" to "Lavender",
+    "#7A9E7E" to "Sage",
+    "#D4848A" to "Blush",
+    "#F0EAD6" to "Cream",
+    "#A0856C" to "Mocha",
+)
+
+@Composable
+private fun DressCodeEditorSheet(
+    dressCode: DressCodeData,
+    onUpdate: (DressCodeData) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var dc by remember { mutableStateOf(dressCode) }
+    var newSuggested by remember { mutableStateOf("") }
+    var newAvoid by remember { mutableStateOf("") }
+
+    fun push() = onUpdate(dc)
+
+    ElegantBottomSheetEditor(
+        title = "Dress Code",
+        subtitle = "Set the tone for your celebration",
+        onDismiss = { push(); onDismiss() },
+    ) {
+        // Style selector
+        Text(
+            "Style",
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+            color = WarmGray400,
+        )
+        Spacer(Modifier.height(8.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            kDressStyles.forEach { style ->
+                val selected = dc.style == style
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            if (selected) Brush.linearGradient(
+                                listOf(
+                                    Gold,
+                                    GoldDeep
+                                )
+                            ) else Brush.linearGradient(listOf(Color.White, Color.White))
+                        )
+                        .border(
+                            0.5.dp,
+                            if (selected) Color.Transparent else WarmGray200,
+                            RoundedCornerShape(20.dp),
+                        )
+                        .clickable { dc = dc.copy(style = style); push() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        style,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (selected) Color.White else WarmGray600,
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(Spacing.lg))
+
+        // Color palette
+        Text(
+            "Color Palette",
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+            color = WarmGray400,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        // Current swatches
+        if (dc.colorHexes.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                dc.colorHexes.zip(dc.colorLabels).forEachIndexed { i, (hex, label) ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(hexToColor(hex))
+                                .border(1.dp, WarmGray200, CircleShape)
+                                .clickable {
+                                    dc = dc.copy(
+                                        colorHexes = dc.colorHexes.toMutableList()
+                                            .also { it.removeAt(i) },
+                                        colorLabels = dc.colorLabels.toMutableList()
+                                            .also { it.removeAt(i) },
+                                    )
+                                    push()
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                null,
+                                Modifier.size(10.dp),
+                                Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = WarmGray400,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(Spacing.sm))
+        }
+
+        // Palette picker
+        Text(
+            "Tap to add",
+            style = MaterialTheme.typography.bodySmall,
+            color = WarmGray300,
+        )
+        Spacer(Modifier.height(6.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            kWeddingPalette.forEach { (hex, label) ->
+                val alreadyAdded = dc.colorHexes.contains(hex)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(hexToColor(hex))
+                        .border(
+                            if (alreadyAdded) 2.dp else 0.5.dp,
+                            if (alreadyAdded) Gold else WarmGray200,
+                            CircleShape,
+                        )
+                        .clickable(enabled = !alreadyAdded) {
+                            dc = dc.copy(
+                                colorHexes = dc.colorHexes + hex,
+                                colorLabels = dc.colorLabels + label,
+                            )
+                            push()
+                        },
                 )
             }
         }
 
-        // Title area
-        Column(
+        Spacer(Modifier.height(Spacing.lg))
+
+        // Suggested
+        EditableChipGroup(
+            label = "Suggested",
+            items = dc.suggested,
+            accentColor = Color(0xFF6A8C6A),
+            bgColor = Color(0xFFD8EED8),
+            newText = newSuggested,
+            onNewText = { newSuggested = it },
+            onAdd = {
+                dc = dc.copy(suggested = dc.suggested + newSuggested.trim())
+                newSuggested = ""; push()
+            },
+            onRemove = { i ->
+                dc = dc.copy(suggested = dc.suggested.toMutableList().also { it.removeAt(i) })
+                push()
+            },
+        )
+
+        Spacer(Modifier.height(Spacing.md))
+
+        // Avoid
+        EditableChipGroup(
+            label = "Please Avoid",
+            items = dc.avoid,
+            accentColor = WarmGray400,
+            bgColor = WarmGray100,
+            newText = newAvoid,
+            onNewText = { newAvoid = it },
+            onAdd = {
+                dc = dc.copy(avoid = dc.avoid + newAvoid.trim())
+                newAvoid = ""; push()
+            },
+            onRemove = { i ->
+                dc = dc.copy(avoid = dc.avoid.toMutableList().also { it.removeAt(i) })
+                push()
+            },
+        )
+    }
+}
+
+@Composable
+private fun EditableChipGroup(
+    label: String,
+    items: List<String>,
+    accentColor: Color,
+    bgColor: Color,
+    newText: String,
+    onNewText: (String) -> Unit,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+        color = WarmGray400,
+    )
+    Spacer(Modifier.height(8.dp))
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items.forEachIndexed { i, item ->
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(bgColor)
+                    .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    item,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = accentColor
+                )
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .clickable { onRemove(i) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        null,
+                        Modifier.size(9.dp),
+                        accentColor.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = newText,
+            onValueChange = onNewText,
+            placeholder = {
+                Text(
+                    "Add item…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WarmGray300
+                )
+            },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Gold,
+                unfocusedBorderColor = WarmGray100,
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+            ),
+            textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
+        )
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal)
-                .padding(bottom = Spacing.xl),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (newText.isNotBlank()) Gold else WarmGray100)
+                .clickable(enabled = newText.isNotBlank(), onClick = onAdd),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Default.Favorite,
-                contentDescription = null,
-                tint     = Gold.copy(alpha = 0.5f),
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.height(Spacing.sm))
-            Text(
-                text      = wedding.name,
-                style     = MaterialTheme.typography.headlineLarge,
-                color     = WarmGray800,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text  = "Event Details",
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                color = WarmGray400,
+                Icons.Default.Add,
+                null,
+                Modifier.size(16.dp),
+                if (newText.isNotBlank()) Color.White else WarmGray300
             )
         }
     }
 }
 
-// ── Date section ──────────────────────────────────────────────────────────────
+// ── Timeline editor ───────────────────────────────────────────────────────────
+
+@Composable
+private fun TimelineEditorSheet(
+    timeline: List<TimelineEventData>,
+    onUpdate: (List<TimelineEventData>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var events by remember { mutableStateOf(timeline.toList()) }
+    fun push() = onUpdate(events)
+
+    ElegantBottomSheetEditor(
+        title = "Day Schedule",
+        subtitle = "Design the flow of your celebration",
+        onDismiss = { push(); onDismiss() },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            events.forEachIndexed { idx, event ->
+                EditableTimelineCard(
+                    event = event,
+                    index = idx,
+                    total = events.size,
+                    onUpdate = { updated ->
+                        events = events.toMutableList().also { it[idx] = updated }
+                        push()
+                    },
+                    onDelete = {
+                        events = events.toMutableList().also { it.removeAt(idx) }
+                        push()
+                    },
+                    onMoveUp = {
+                        if (idx > 0) {
+                            events = events.toMutableList().also {
+                                val tmp = it[idx - 1]; it[idx - 1] = it[idx]; it[idx] = tmp
+                            }
+                            push()
+                        }
+                    },
+                    onMoveDown = {
+                        if (idx < events.lastIndex) {
+                            events = events.toMutableList().also {
+                                val tmp = it[idx + 1]; it[idx + 1] = it[idx]; it[idx] = tmp
+                            }
+                            push()
+                        }
+                    },
+                )
+            }
+
+            // Add event button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                Gold.copy(alpha = 0.4f),
+                                Champagne,
+                                Gold.copy(alpha = 0.4f)
+                            )
+                        ),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .clickable {
+                        events = events + TimelineEventData(
+                            time = "00:00",
+                            title = "New Event",
+                            status = "upcoming"
+                        )
+                        push()
+                    }
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(Icons.Default.Add, null, Modifier.size(16.dp), Gold)
+                    Text("Add Event", style = MaterialTheme.typography.labelMedium, color = Gold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditableTimelineCard(
+    event: TimelineEventData,
+    index: Int,
+    total: Int,
+    onUpdate: (TimelineEventData) -> Unit,
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val statusColor = when (event.status) {
+        "current" -> BlushDeep
+        "completed" -> Gold.copy(alpha = 0.8f)
+        else -> WarmGray300
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(0.5.dp, WarmGray100, RoundedCornerShape(16.dp)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = Spacing.md, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Status dot
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(statusColor, CircleShape),
+            )
+
+            // Time badge
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ChampagneLight)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    event.time.ifBlank { "--:--" },
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = GoldDeep,
+                )
+            }
+
+            Text(
+                event.title.ifBlank { "Untitled" },
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = WarmGray700,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            // Reorder
+            Column {
+                IconButton(
+                    onClick = onMoveUp,
+                    modifier = Modifier.size(20.dp),
+                    enabled = index > 0
+                ) {
+                    Icon(
+                        Icons.Default.KeyboardArrowUp,
+                        null,
+                        Modifier.size(14.dp),
+                        if (index > 0) WarmGray400 else WarmGray100
+                    )
+                }
+                IconButton(
+                    onClick = onMoveDown,
+                    modifier = Modifier.size(20.dp),
+                    enabled = index < total - 1
+                ) {
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        null,
+                        Modifier.size(14.dp),
+                        if (index < total - 1) WarmGray400 else WarmGray100
+                    )
+                }
+            }
+
+            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.DeleteOutline, null, Modifier.size(14.dp), WarmGray300)
+            }
+
+            Icon(
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                null,
+                Modifier.size(16.dp),
+                WarmGray300
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md)
+                    .padding(bottom = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    OutlinedTextField(
+                        value = event.time,
+                        onValueChange = { onUpdate(event.copy(time = it)) },
+                        label = { Text("Time", style = MaterialTheme.typography.bodySmall) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = WarmGray100,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                        ),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
+                    )
+
+                    // Status picker
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Status",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = WarmGray400
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf("upcoming", "current", "completed").forEach { s ->
+                                val sel = event.status == s
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (sel) Gold else WarmGray100)
+                                        .clickable { onUpdate(event.copy(status = s)) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                ) {
+                                    Text(
+                                        s.replaceFirstChar { it.uppercase() },
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = if (sel) Color.White else WarmGray500,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = event.title,
+                    onValueChange = { onUpdate(event.copy(title = it)) },
+                    label = { Text("Title", style = MaterialTheme.typography.bodySmall) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = WarmGray100,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                    ),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
+                )
+
+                OutlinedTextField(
+                    value = event.description,
+                    onValueChange = { onUpdate(event.copy(description = it)) },
+                    label = { Text("Description", style = MaterialTheme.typography.bodySmall) },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = WarmGray100,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                    ),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
+                )
+            }
+        }
+    }
+}
+
+// ── Existing display sections (unchanged) ─────────────────────────────────────
+
+@Composable
+private fun InfoHeader(wedding: Wedding, onBack: () -> Unit) {
+    if (wedding.coverImageUrl.isNotBlank()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(280.dp),
+        ) {
+            AsyncImage(
+                model = wedding.coverImageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.30f),
+                            0.5f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.55f),
+                        )
+                    )
+            )
+            Box(
+                modifier = Modifier
+                    .padding(Spacing.screenHorizontal, Spacing.sm)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", Modifier.size(20.dp), Color.White)
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = Spacing.lg, start = Spacing.md, end = Spacing.md),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = wedding.name,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "EVENT DETAILS",
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
+                    color = Color.White.copy(alpha = 0.75f),
+                )
+            }
+        }
+        Spacer(Modifier.height(Spacing.lg))
+    } else {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        "Back",
+                        Modifier.size(20.dp),
+                        WarmGray600
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.screenHorizontal)
+                    .padding(bottom = Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(Icons.Default.Favorite, null, Modifier.size(16.dp), Gold.copy(alpha = 0.5f))
+                Spacer(Modifier.height(Spacing.sm))
+                Text(
+                    text = wedding.name,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = WarmGray800,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Event Details",
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
+                    color = WarmGray400
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun DateSection(wedding: Wedding, context: Context) {
@@ -258,41 +1674,33 @@ private fun DateSection(wedding: Wedding, context: Context) {
             .padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SectionIconBox(
-            icon       = Icons.Default.CalendarMonth,
-            accentColor = BlushDeep,
-            bgColor    = BlushLight,
-        )
+        SectionIconBox(Icons.Default.CalendarMonth, BlushDeep, BlushLight)
         Spacer(Modifier.width(Spacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text  = "WEDDING DATE",
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontSize = 9.sp),
-                color = WarmGray400,
+                "WEDDING DATE",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 1.5.sp,
+                    fontSize = 9.sp
+                ),
+                color = WarmGray400
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text  = wedding.date.ifBlank { "Date TBA" },
+                wedding.date.ifBlank { "Date TBA" },
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = WarmGray800,
+                color = WarmGray800
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text  = "Ceremony · 14:00 – 22:00  ·  Add to calendar",
+                "Ceremony · 14:00 – 22:00  ·  Add to calendar",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gold.copy(alpha = 0.75f),
+                color = Gold.copy(alpha = 0.75f)
             )
         }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = null,
-            tint     = WarmGray200,
-            modifier = Modifier.size(16.dp),
-        )
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(16.dp), WarmGray200)
     }
 }
-
-// ── Venue section ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun VenueSection(wedding: Wedding, context: Context) {
@@ -303,83 +1711,76 @@ private fun VenueSection(wedding: Wedding, context: Context) {
             .padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SectionIconBox(
-            icon       = Icons.Default.LocationOn,
-            accentColor = Gold,
-            bgColor    = ChampagneLight,
-        )
+        SectionIconBox(Icons.Default.LocationOn, Gold, ChampagneLight)
         Spacer(Modifier.width(Spacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text  = "VENUE",
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontSize = 9.sp),
-                color = WarmGray400,
+                "VENUE",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 1.5.sp,
+                    fontSize = 9.sp
+                ),
+                color = WarmGray400
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text     = wedding.location.ifBlank { "Venue TBA" },
-                style    = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                color    = WarmGray800,
+                wedding.location.ifBlank { "Venue TBA" },
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray800,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text  = "Tap for directions",
+                "Tap for directions",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gold.copy(alpha = 0.75f),
+                color = Gold.copy(alpha = 0.75f)
             )
         }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = null,
-            tint     = WarmGray200,
-            modifier = Modifier.size(16.dp),
-        )
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(16.dp), WarmGray200)
     }
 }
 
-// ── Menu section ──────────────────────────────────────────────────────────────
-
 @Composable
-private fun MenuSection() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd)) {
-        // Section header
+private fun MenuSection(menu: List<MenuCourseData>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd)
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            SectionIconBox(
-                icon       = Icons.Default.Restaurant,
-                accentColor = Color(0xFF7A9E7E),
-                bgColor    = Color(0xFFD8EED8),
-            )
+            SectionIconBox(Icons.Default.Restaurant, Color(0xFF7A9E7E), Color(0xFFD8EED8))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = "WEDDING MENU",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontSize = 9.sp),
-                    color = WarmGray400,
+                    "WEDDING MENU",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.5.sp,
+                        fontSize = 9.sp
+                    ),
+                    color = WarmGray400
                 )
                 Text(
-                    text  = "4 courses",
+                    if (menu.isEmpty()) "TBA" else "${menu.size} courses",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                    color = WarmGray600,
+                    color = WarmGray600
                 )
             }
         }
-
-        Spacer(Modifier.height(Spacing.md))
-
-        // Categories
-        sampleMenu.forEachIndexed { i, category ->
-            MenuCategoryRow(category = category)
-            if (i < sampleMenu.lastIndex) Spacer(Modifier.height(Spacing.xs))
+        if (menu.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.md))
+            menu.forEachIndexed { i, course ->
+                MenuCategoryRow(course = course)
+                if (i < menu.lastIndex) Spacer(Modifier.height(Spacing.xs))
+            }
         }
     }
 }
 
 @Composable
-private fun MenuCategoryRow(category: MenuCategory) {
+private fun MenuCategoryRow(course: MenuCourseData) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(
@@ -387,13 +1788,8 @@ private fun MenuCategoryRow(category: MenuCategory) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(if (expanded) WarmGray50 else Color.Transparent)
-            .border(
-                width = 0.5.dp,
-                color = if (expanded) WarmGray200 else WarmGray100,
-                shape = RoundedCornerShape(14.dp),
-            ),
+            .border(0.5.dp, if (expanded) WarmGray200 else WarmGray100, RoundedCornerShape(14.dp)),
     ) {
-        // Category header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -401,7 +1797,6 @@ private fun MenuCategoryRow(category: MenuCategory) {
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Emoji pill
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -409,16 +1804,15 @@ private fun MenuCategoryRow(category: MenuCategory) {
                     .border(0.5.dp, WarmGray100, RoundedCornerShape(8.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                Text(text = category.emoji, fontSize = 14.sp)
+                Text(course.emoji, fontSize = 14.sp)
             }
             Spacer(Modifier.width(Spacing.sm))
             Text(
-                text  = category.name,
+                course.courseName,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                 color = WarmGray700,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f)
             )
-            // Item count
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -426,34 +1820,33 @@ private fun MenuCategoryRow(category: MenuCategory) {
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             ) {
                 Text(
-                    text  = "${category.items.size}",
+                    "${course.items.size}",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = WarmGray500,
+                    color = WarmGray500
                 )
             }
             Spacer(Modifier.width(6.dp))
             Icon(
-                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
-                tint     = WarmGray300,
-                modifier = Modifier.size(18.dp),
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                null,
+                Modifier.size(18.dp),
+                WarmGray300
             )
         }
 
-        // Items as chips
         AnimatedVisibility(
             visible = expanded,
             enter   = expandVertically(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(),
             exit    = shrinkVertically() + fadeOut(),
         ) {
             FlowRow(
-                modifier            = Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement   = Arrangement.spacedBy(6.dp),
             ) {
-                category.items.forEach { item ->
-                    MenuItemChip(text = item)
-                }
+                course.items.forEach { item -> MenuItemChip(item) }
             }
         }
     }
@@ -469,279 +1862,260 @@ private fun MenuItemChip(text: String) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            text  = text,
+            text,
             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-            color = WarmGray700,
+            color = WarmGray700
         )
     }
 }
 
-// ── Dress code section ────────────────────────────────────────────────────────
-
 @Composable
-private fun DressCodeSection() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd)) {
-        // Header
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            SectionIconBox(
-                icon       = Icons.Default.Style,
-                accentColor = BlushDeep,
-                bgColor    = BlushLight,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = "DRESS CODE",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontSize = 9.sp),
-                    color = WarmGray400,
-                )
-                Text(
-                    text  = DRESS_CODE_STYLE,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = WarmGray800,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(Spacing.md))
-
-        // Color palette
-        Text(
-            text  = "Color Palette",
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
-            color = WarmGray400,
-        )
-        Spacer(Modifier.height(Spacing.sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            dressCodeColors.forEach { swatch ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(swatch.color)
-                            .border(1.dp, WarmGray200, CircleShape),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text      = swatch.label,
-                        style     = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                        color     = WarmGray400,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(Spacing.md))
-
-        // Do / Don't hints
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            // Suggested column
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = "✓  Suggested",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
-                    color = Color(0xFF6A8C6A),
-                )
-                Spacer(Modifier.height(6.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement   = Arrangement.spacedBy(4.dp),
-                ) {
-                    dressCodeDo.forEach { hint ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color(0xFFD8EED8))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        ) {
-                            Text(
-                                text  = hint,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                color = Color(0xFF3A5A3A),
-                            )
-                        }
-                    }
-                }
-            }
-            // Please avoid column
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = "✗  Please avoid",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
-                    color = WarmGray400,
-                )
-                Spacer(Modifier.height(6.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement   = Arrangement.spacedBy(4.dp),
-                ) {
-                    dressCodeDont.forEach { hint ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(WarmGray100)
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        ) {
-                            Text(
-                                text  = hint,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                color = WarmGray500,
-                            )
-                        }
-                    }
-                }
-            }
-        }
+private fun DressCodeSection(dressCode: DressCodeData) {
+    val swatches = dressCode.colorHexes.zip(dressCode.colorLabels).map { (hex, label) ->
+        ColorSwatch(hexToColor(hex), label, hex)
     }
-}
 
-// ── Schedule section ──────────────────────────────────────────────────────────
-
-@Composable
-private fun ScheduleSection() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd),
+            .padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd)
     ) {
-        // Header
         Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            SectionIconBox(
-                icon        = Icons.Default.Schedule,
-                accentColor = Gold,
-                bgColor     = ChampagneLight,
-            )
+            SectionIconBox(Icons.Default.Style, BlushDeep, BlushLight)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = "EVENT SCHEDULE",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontSize = 9.sp),
-                    color = WarmGray400,
+                    "DRESS CODE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.5.sp,
+                        fontSize = 9.sp
+                    ),
+                    color = WarmGray400
                 )
                 Text(
-                    text  = "${sampleSchedule.size} events today",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                    color = WarmGray600,
+                    dressCode.style.ifBlank { "TBA" },
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = WarmGray800
                 )
             }
         }
 
-        Spacer(Modifier.height(Spacing.md))
-
-        // Compact timeline rows
-        sampleSchedule.forEachIndexed { index, item ->
-            CompactScheduleRow(
-                item    = item,
-                isFirst = index == 0,
-                isLast  = index == sampleSchedule.lastIndex,
+        if (swatches.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.md))
+            Text(
+                "Color Palette",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
+                color = WarmGray400
             )
+            Spacer(Modifier.height(Spacing.sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                swatches.forEach { swatch ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(swatch.color)
+                                .border(1.dp, WarmGray200, CircleShape)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            swatch.label,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = WarmGray400,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        if (dressCode.suggested.isNotEmpty() || dressCode.avoid.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.md))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                if (dressCode.suggested.isNotEmpty()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "✓  Suggested",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = Color(0xFF6A8C6A)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            dressCode.suggested.forEach { hint ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(Color(0xFFD8EED8))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        hint,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = Color(0xFF3A5A3A)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if (dressCode.avoid.isNotEmpty()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "✗  Please avoid",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = WarmGray400
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            dressCode.avoid.forEach { hint ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(WarmGray100)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        hint,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = WarmGray500
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun CompactScheduleRow(
-    item: ScheduleItem,
-    isFirst: Boolean,
-    isLast: Boolean,
-) {
-    val isCurrent   = item.status == "current"
-    val isCompleted = item.status == "completed"
-
-    val dotSize  = if (isCurrent) 10.dp else 8.dp
-    val dotColor = when {
-        isCompleted -> Gold.copy(alpha = 0.7f)
-        isCurrent   -> BlushDeep
-        else        -> WarmGray200
-    }
-    val lineColor = when {
-        isCompleted -> Gold.copy(alpha = 0.35f)
-        else        -> WarmGray200
-    }
-
-    Row(
-        modifier          = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        verticalAlignment = Alignment.Top,
+private fun ScheduleSection(timeline: List<TimelineEventData>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.cardLg, vertical = Spacing.cardMd)
     ) {
-        // Left: dot + connecting line
-        Box(
-            modifier         = Modifier.width(20.dp).fillMaxHeight(),
-            contentAlignment = Alignment.TopCenter,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            if (!isFirst) {
-                Box(
-                    modifier = Modifier
-                        .width(1.5.dp)
-                        .fillMaxHeight(0.5f)
-                        .background(lineColor)
-                        .align(Alignment.TopCenter),
+            SectionIconBox(Icons.Default.Schedule, Gold, ChampagneLight)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "EVENT SCHEDULE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.5.sp,
+                        fontSize = 9.sp
+                    ),
+                    color = WarmGray400
                 )
-            }
-            if (!isLast) {
-                Box(
-                    modifier = Modifier
-                        .width(1.5.dp)
-                        .fillMaxHeight(0.5f)
-                        .background(lineColor)
-                        .align(Alignment.BottomCenter),
+                Text(
+                    if (timeline.isEmpty()) "TBA" else "${timeline.size} events today",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = WarmGray600
                 )
-            }
-            Box(
-                modifier         = Modifier
-                    .size(dotSize)
-                    .background(dotColor, CircleShape)
-                    .align(Alignment.Center),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (isCompleted) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint     = Color.White,
-                        modifier = Modifier.size(5.dp),
-                    )
-                }
             }
         }
 
-        Spacer(Modifier.width(10.dp))
+        if (timeline.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.md))
+            timeline.forEachIndexed { index, item ->
+                CompactScheduleRow(
+                    item = item,
+                    isFirst = index == 0,
+                    isLast = index == timeline.lastIndex
+                )
+            }
+        }
+    }
+}
 
-        // Right: time + title + badge
+@Composable
+private fun CompactScheduleRow(item: TimelineEventData, isFirst: Boolean, isLast: Boolean) {
+    val isCurrent   = item.status == "current"
+    val isCompleted = item.status == "completed"
+    val dotColor = when {
+        isCompleted -> Gold.copy(alpha = 0.7f); isCurrent -> BlushDeep; else -> WarmGray200
+    }
+    val lineColor = if (isCompleted) Gold.copy(alpha = 0.35f) else WarmGray200
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .width(20.dp)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            if (!isFirst) Box(
+                modifier = Modifier
+                    .width(1.5.dp)
+                    .fillMaxHeight(0.5f)
+                    .background(lineColor)
+                    .align(Alignment.TopCenter)
+            )
+            if (!isLast) Box(
+                modifier = Modifier
+                    .width(1.5.dp)
+                    .fillMaxHeight(0.5f)
+                    .background(lineColor)
+                    .align(Alignment.BottomCenter)
+            )
+            Box(
+                modifier = Modifier
+                    .size(if (isCurrent) 10.dp else 8.dp)
+                    .background(dotColor, CircleShape)
+                    .align(Alignment.Center),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isCompleted) Icon(Icons.Default.Check, null, Modifier.size(5.dp), Color.White)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
         Row(
-            modifier              = Modifier
+            modifier = Modifier
                 .weight(1f)
-                .padding(
-                    top    = 1.dp,
-                    bottom = if (isLast) 0.dp else 9.dp,
-                ),
+                .padding(top = 1.dp, bottom = if (isLast) 0.dp else 9.dp),
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text     = item.time,
-                style    = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
-                color    = if (isCurrent) Gold else WarmGray400,
-                modifier = Modifier.width(40.dp),
+                item.time,
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
+                color = if (isCurrent) Gold else WarmGray400,
+                modifier = Modifier.width(40.dp)
             )
             Text(
-                text     = item.title,
-                style    = MaterialTheme.typography.bodySmall.copy(
+                item.title,
+                style = MaterialTheme.typography.bodySmall.copy(
                     fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                    fontSize   = 12.sp,
+                    fontSize = 12.sp
                 ),
-                color    = when {
-                    isCompleted -> WarmGray400
-                    isCurrent   -> WarmGray800
-                    else        -> WarmGray600
+                color = when {
+                    isCompleted -> WarmGray400; isCurrent -> WarmGray800; else -> WarmGray600
                 },
                 modifier = Modifier.weight(1f),
             )
@@ -750,12 +2124,15 @@ private fun CompactScheduleRow(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(BlushLight)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text  = "NOW",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, letterSpacing = 0.5.sp),
-                        color = BlushDeep,
+                        "NOW",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 8.sp,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = BlushDeep
                     )
                 }
             }
@@ -763,13 +2140,11 @@ private fun CompactScheduleRow(
     }
 }
 
-// ── Wedding code card ─────────────────────────────────────────────────────────
-
 @Composable
 private fun WeddingCodeCard(
     wedding: Wedding,
     onCopyCode: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
@@ -785,36 +2160,34 @@ private fun WeddingCodeCard(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(Gold.copy(alpha = 0.15f)),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Key,
-                contentDescription = null,
-                tint     = GoldDeep,
-                modifier = Modifier.size(20.dp),
-            )
+            Icon(Icons.Default.Key, null, Modifier.size(20.dp), GoldDeep)
         }
         Spacer(Modifier.width(Spacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text  = "WEDDING CODE",
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontSize = 9.sp),
-                color = WarmGray400,
+                "WEDDING CODE",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 1.5.sp,
+                    fontSize = 9.sp
+                ),
+                color = WarmGray400
             )
             Text(
-                text     = wedding.id,
-                style    = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                color    = WarmGray700,
+                wedding.id,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray700,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis
             )
         }
         IconButton(onClick = onCopyCode) {
             Icon(
-                imageVector = Icons.Default.ContentCopy,
-                contentDescription = "Copy code",
-                tint     = GoldDeep.copy(alpha = 0.7f),
-                modifier = Modifier.size(18.dp),
+                Icons.Default.ContentCopy,
+                "Copy code",
+                Modifier.size(18.dp),
+                GoldDeep.copy(alpha = 0.7f)
             )
         }
     }
@@ -831,30 +2204,48 @@ private fun SectionIconBox(icon: ImageVector, accentColor: Color, bgColor: Color
             .background(bgColor),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(22.dp))
+        Icon(icon, null, Modifier.size(22.dp), accentColor)
     }
 }
 
 @Composable
 private fun SectionDivider() {
     HorizontalDivider(
-        modifier  = Modifier.padding(horizontal = Spacing.cardLg),
-        color     = WarmGray100,
-        thickness = 0.5.dp,
+        modifier = Modifier.padding(horizontal = Spacing.cardLg),
+        color = WarmGray100,
+        thickness = 0.5.dp
     )
 }
-
-// ── Background florals ────────────────────────────────────────────────────────
 
 @Composable
 private fun WeddingInfoFlorals() {
     Canvas(modifier = Modifier.fillMaxSize()) {
-        drawCircle(Color(0xFFEDD9B8).copy(alpha = 0.35f), 90.dp.toPx(),  Offset(-10.dp.toPx(), 20.dp.toPx()))
-        drawCircle(Color(0xFFEAB8BC).copy(alpha = 0.14f), 65.dp.toPx(),  Offset(70.dp.toPx(),  90.dp.toPx()))
-        drawCircle(Color(0xFFF5E6C8).copy(alpha = 0.38f), 70.dp.toPx(),  Offset(-20.dp.toPx(), 70.dp.toPx()))
+        drawCircle(
+            Color(0xFFEDD9B8).copy(alpha = 0.35f),
+            90.dp.toPx(),
+            Offset(-10.dp.toPx(), 20.dp.toPx())
+        )
+        drawCircle(
+            Color(0xFFEAB8BC).copy(alpha = 0.14f),
+            65.dp.toPx(),
+            Offset(70.dp.toPx(), 90.dp.toPx())
+        )
+        drawCircle(
+            Color(0xFFF5E6C8).copy(alpha = 0.38f),
+            70.dp.toPx(),
+            Offset(-20.dp.toPx(), 70.dp.toPx())
+        )
         val bx = size.width; val by = size.height
-        drawCircle(Color(0xFFEDD9B8).copy(alpha = 0.28f), 80.dp.toPx(),  Offset(bx,              by - 40.dp.toPx()))
-        drawCircle(Color(0xFFF5E6C8).copy(alpha = 0.32f), 55.dp.toPx(),  Offset(bx - 60.dp.toPx(), by - 80.dp.toPx()))
+        drawCircle(
+            Color(0xFFEDD9B8).copy(alpha = 0.28f),
+            80.dp.toPx(),
+            Offset(bx, by - 40.dp.toPx())
+        )
+        drawCircle(
+            Color(0xFFF5E6C8).copy(alpha = 0.32f),
+            55.dp.toPx(),
+            Offset(bx - 60.dp.toPx(), by - 80.dp.toPx())
+        )
     }
 }
 
@@ -882,24 +2273,31 @@ private fun openCalendar(context: Context, wedding: Wedding) {
 private fun openMaps(context: Context, location: String) {
     if (location.isBlank()) return
     val encoded = Uri.encode(location)
-    // Try Google Maps navigation first
     try {
-        val mapsIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$encoded"))
-            .setPackage("com.google.android.apps.maps")
-        context.startActivity(mapsIntent)
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("google.navigation:q=$encoded")
+            ).setPackage("com.google.android.apps.maps")
+        )
         return
     } catch (_: Exception) { }
-    // Fallback: generic geo intent (any maps app)
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded")))
-    } catch (_: Exception) { }
+    } catch (_: Exception) {
+    }
 }
 
 private fun parseWeddingDate(dateStr: String): Long? {
     val formats = listOf(
-        "MMMM d, yyyy", "MMM d, yyyy", "MMMM dd, yyyy",
-        "MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd",
-        "d MMMM yyyy",  "dd MMMM yyyy",
+        "MMMM d, yyyy",
+        "MMM d, yyyy",
+        "MMMM dd, yyyy",
+        "MM/dd/yyyy",
+        "dd/MM/yyyy",
+        "yyyy-MM-dd",
+        "d MMMM yyyy",
+        "dd MMMM yyyy"
     )
     for (pattern in formats) {
         try {

@@ -82,6 +82,9 @@ dependencies {
     // Coil
     implementation(libs.coil.compose)
 
+    // QR code generation
+    implementation(libs.zxing.core)
+
     // Google Fonts
     implementation(libs.androidx.ui.text.google.fonts)
 

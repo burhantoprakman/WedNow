@@ -62,4 +62,9 @@ sealed class Screen(val route: String) {
         const val ARG = "weddingId"
         fun createRoute(weddingId: String) = "timeline/$weddingId"
     }
+
+    object ShareInvitation : Screen("share_invitation/{weddingId}") {
+        const val ARG = "weddingId"
+        fun createRoute(weddingId: String) = "share_invitation/$weddingId"
+    }
 }

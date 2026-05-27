@@ -6,5 +6,9 @@ data class Wedding(
     val date: String = "",
     val location: String = "",
     val adminGuestId: String = "",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    val coverImageUrl: String = "",
+    val menu: List<MenuCourseData> = emptyList(),
+    val dressCode: DressCodeData = DressCodeData(),
+    val timeline: List<TimelineEventData> = emptyList(),
 )
