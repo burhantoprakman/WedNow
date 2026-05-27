@@ -26,6 +26,8 @@ class PhotoRepositoryImpl @Inject constructor(
     override suspend fun uploadPhoto(weddingId: String, uri: Uri): Result<Unit> {
         val photoId = UUID.randomUUID().toString()
         val guestId = GuestSessionManager.getGuestId(context)
+        val guestName = GuestSessionManager.getGuestName(context)
+            .ifBlank { "A Guest" }
 
         val imageUrl = storageService.uploadPhoto(weddingId, photoId, uri)
             .getOrElse { return Result.failure(it) }
@@ -34,8 +36,18 @@ class PhotoRepositoryImpl @Inject constructor(
             id = photoId,
             imageUrl = imageUrl,
             uploadedBy = guestId,
-            timestamp = System.currentTimeMillis()
+            senderName = guestName,
+            timestamp = System.currentTimeMillis(),
+            likeCount = 0,
+            likedBy = emptyList(),
         )
         return firestoreService.savePhotoMetadata(weddingId, photo)
     }
+
+    override suspend fun toggleLike(
+        weddingId: String,
+        photoId: String,
+        guestId: String,
+        isCurrentlyLiked: Boolean,
+    ): Result<Unit> = firestoreService.toggleLike(weddingId, photoId, guestId, isCurrentlyLiked)
 }

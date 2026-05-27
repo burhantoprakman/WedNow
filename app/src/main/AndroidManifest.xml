@@ -21,11 +21,53 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.WedNow">
+
+            <!-- Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+                Custom-scheme deep link — works immediately when the app is installed.
+                URI format: wednow://join/{weddingId}
+                When the app is NOT installed, Android shows "No app found"; guests
+                are directed to the Play Store via the HTTPS link below or the PDF link.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="wednow"
+                    android:host="join" />
+            </intent-filter>
+
+            <!--
+                Android App Links — verified HTTPS deep link.
+                URI format: https://wednow.app/join/{weddingId}
+                • App installed  → Android opens WedNow directly (no browser).
+                • App not installed → browser opens the URL; host the page at
+                  https://wednow.app/join/{id} to redirect guests to the Play Store.
+                Requires /.well-known/assetlinks.json served at wednow.app.
+                See: https://developer.android.com/training/app-links
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="wednow.app"
+                    android:pathPrefix="/join" />
+            </intent-filter>
+
         </activity>
 
         <service

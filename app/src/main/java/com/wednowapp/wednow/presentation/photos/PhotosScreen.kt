@@ -2,26 +2,55 @@ package com.wednowapp.wednow.presentation.photos
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +59,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -38,55 +70,20 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.wednowapp.wednow.domain.model.WeddingPhoto
-import com.wednowapp.wednow.ui.theme.BlushDeep
-import com.wednowapp.wednow.ui.theme.BlushLight
 import com.wednowapp.wednow.ui.theme.ChampagneLight
 import com.wednowapp.wednow.ui.theme.Gold
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
-import kotlinx.coroutines.launch
+import com.wednowapp.wednow.ui.theme.WarmGray300
+import com.wednowapp.wednow.ui.theme.WarmGray400
+import com.wednowapp.wednow.ui.theme.WarmGray50
+import com.wednowapp.wednow.ui.theme.WarmGray700
+import com.wednowapp.wednow.ui.theme.WarmGray800
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-// ── Layout model ──────────────────────────────────────────────────────────────
-
-private sealed class PhotoDisplayItem {
-    data class Hero(val photo: WeddingPhoto) : PhotoDisplayItem()
-    data class Single(val photo: WeddingPhoto) : PhotoDisplayItem()
-    data class Duo(val left: WeddingPhoto, val right: WeddingPhoto, val leftWider: Boolean) : PhotoDisplayItem()
-}
-
-private fun buildDisplayItems(photos: List<WeddingPhoto>): List<PhotoDisplayItem> {
-    if (photos.isEmpty()) return emptyList()
-    val result = mutableListOf<PhotoDisplayItem>()
-    result += PhotoDisplayItem.Hero(photos[0])
-    val rest = photos.drop(1)
-    var i = 0
-    var leftWider = true
-    while (i < rest.size) {
-        // single full-width
-        result += PhotoDisplayItem.Single(rest[i++])
-        // pair (if available)
-        if (i < rest.size) {
-            val a = rest[i++]
-            if (i < rest.size) {
-                result += PhotoDisplayItem.Duo(a, rest[i++], leftWider)
-                leftWider = !leftWider
-            } else {
-                result += PhotoDisplayItem.Single(a)
-            }
-        }
-    }
-    return result
-}
-
-private fun keyFor(item: PhotoDisplayItem): String = when (item) {
-    is PhotoDisplayItem.Hero   -> "hero_${item.photo.id}"
-    is PhotoDisplayItem.Single -> "single_${item.photo.id}"
-    is PhotoDisplayItem.Duo    -> "duo_${item.left.id}"
-}
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -97,262 +94,238 @@ fun PhotosScreen(
 ) {
     val photos      by viewModel.photos.collectAsStateWithLifecycle()
     val uploadState by viewModel.uploadState.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    val photoPicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri ->
-        uri?.let { viewModel.upload(it) }
+    val photoPicker =
+        rememberLauncherForActivityResult(PickMultipleVisualMedia(maxItems = 10)) { uris ->
+            if (uris.isNotEmpty()) viewModel.uploadMultiple(uris)
     }
 
     LaunchedEffect(uploadState) {
         when (val s = uploadState) {
-            is UploadState.Success -> { snackbarHostState.showSnackbar("Moment shared ✦"); viewModel.resetUploadState() }
-            is UploadState.Error   -> { snackbarHostState.showSnackbar(s.message);         viewModel.resetUploadState() }
-            else                   -> Unit
+            is UploadState.Success -> {
+                val msg = if (s.count == 1) "Memory shared ❆" else "${s.count} memories shared ❆"
+                snackbar.showSnackbar(msg)
+                viewModel.resetUploadState()
+            }
+
+            is UploadState.Error -> {
+                snackbar.showSnackbar(s.message); viewModel.resetUploadState()
+            }
+
+            else -> Unit
         }
     }
 
-    PhotosContent(
-        photos       = photos,
-        isUploading  = uploadState == UploadState.Loading,
-        onBack       = onBack,
-        onPickPhoto  = { photoPicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) },
-        snackbarHost = snackbarHostState,
-    )
-}
-
-// ── Main content ──────────────────────────────────────────────────────────────
-
-@Composable
-private fun PhotosContent(
-    photos: List<WeddingPhoto>,
-    isUploading: Boolean,
-    onBack: () -> Unit,
-    onPickPhoto: () -> Unit,
-    snackbarHost: SnackbarHostState,
-) {
-    val likedPhotos = remember { mutableStateMapOf<String, Boolean>() }
     var fullscreenPhoto by remember { mutableStateOf<WeddingPhoto?>(null) }
-
-    val displayItems = remember(photos) { buildDisplayItems(photos) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(colors = listOf(ChampagneLight.copy(alpha = 0.4f), Ivory, Ivory))
-            ),
+            .background(Ivory),
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            contentPadding = PaddingValues(bottom = 120.dp),
-        ) {
-            // Top bar
-            item {
-                MemoriesTopBar(onBack = onBack, photoCount = photos.size)
-            }
-
-            if (photos.isEmpty()) {
-                item { ElegantEmptyState() }
-            } else {
-                items(displayItems, key = { keyFor(it) }) { item ->
-                    val cardPad = Modifier.padding(
-                        horizontal = Spacing.screenHorizontal,
-                        vertical = Spacing.xs,
-                    )
-                    when (item) {
-                        is PhotoDisplayItem.Hero -> {
-                            Spacer(Modifier.height(Spacing.sm))
-                            HeroPhotoSection(
-                                photo = item.photo,
-                                isLiked = likedPhotos[item.photo.id] ?: false,
-                                onLike = { likedPhotos[item.photo.id] = !(likedPhotos[item.photo.id] ?: false) },
-                                onTap = { fullscreenPhoto = item.photo },
-                            )
-                        }
-
-                        is PhotoDisplayItem.Single -> {
-                            MemoryPhotoCard(
-                                photo = item.photo,
-                                modifier = cardPad.fillMaxWidth().aspectRatio(16f / 10f),
-                                cornerRadius = 20.dp,
-                                isLiked = likedPhotos[item.photo.id] ?: false,
-                                onLike = { likedPhotos[item.photo.id] = !(likedPhotos[item.photo.id] ?: false) },
-                                onTap = { fullscreenPhoto = item.photo },
-                            )
-                        }
-
-                        is PhotoDisplayItem.Duo -> {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(220.dp)
-                                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xs),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                            ) {
-                                val leftWeight  = if (item.leftWider) 0.58f else 0.42f
-                                val rightWeight = if (item.leftWider) 0.42f else 0.58f
-                                MemoryPhotoCard(
-                                    photo = item.left,
-                                    modifier = Modifier.weight(leftWeight).fillMaxHeight(),
-                                    cornerRadius = 20.dp,
-                                    isLiked = likedPhotos[item.left.id] ?: false,
-                                    onLike = { likedPhotos[item.left.id] = !(likedPhotos[item.left.id] ?: false) },
-                                    onTap = { fullscreenPhoto = item.left },
-                                )
-                                MemoryPhotoCard(
-                                    photo = item.right,
-                                    modifier = Modifier.weight(rightWeight).fillMaxHeight(),
-                                    cornerRadius = 20.dp,
-                                    isLiked = likedPhotos[item.right.id] ?: false,
-                                    onLike = { likedPhotos[item.right.id] = !(likedPhotos[item.right.id] ?: false) },
-                                    onTap = { fullscreenPhoto = item.right },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Upload button — fixed bottom-right
-        ElegantUploadButton(
-            isUploading = isUploading,
-            onClick = onPickPhoto,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(end = Spacing.screenHorizontal, bottom = Spacing.lg),
+        GalleryFeed(
+            photos = photos,
+            currentGuestId = viewModel.currentGuestId,
+            onBack = onBack,
+            onToggleLike = viewModel::toggleLike,
+            onPhotoTap = { fullscreenPhoto = it },
         )
 
-        // Snackbar
-        SnackbarHost(
-            hostState = snackbarHost,
+        AddMemoryButton(
+            uploadState = uploadState,
+            onClick = { photoPicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 80.dp),
+                .padding(bottom = Spacing.xl),
+        )
+
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 100.dp),
         )
     }
 
-    // Fullscreen viewer
     fullscreenPhoto?.let { photo ->
-        FullscreenPhotoDialog(
-            photo = photo,
-            onDismiss = { fullscreenPhoto = null },
-        )
+        FullscreenViewer(photo = photo, onDismiss = { fullscreenPhoto = null })
     }
 }
 
-// ── Top bar ───────────────────────────────────────────────────────────────────
+// ── Feed ──────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun MemoriesTopBar(onBack: () -> Unit, photoCount: Int) {
-    Row(
+private fun GalleryFeed(
+    photos: List<WeddingPhoto>?,
+    currentGuestId: String,
+    onBack: () -> Unit,
+    onToggleLike: (photoId: String, isCurrentlyLiked: Boolean) -> Unit,
+    onPhotoTap: (WeddingPhoto) -> Unit,
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 12.dp,
+            end = 12.dp,
+            bottom = 140.dp,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            GalleryHeader(
+                onBack = onBack,
+                photoCount = photos?.size ?: 0,
+            )
+        }
+
+        when {
+            photos == null -> item(span = { GridItemSpan(maxLineSpan) }) {
+                LoadingShimmer()
+            }
+
+            photos.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
+                EmptyGalleryState()
+            }
+
+            else -> {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    val photo = photos.first()
+                    val isLiked = photo.likedBy.contains(currentGuestId)
+                    FeaturedMemoryCard(
+                        photo = photo,
+                        isLiked = isLiked,
+                        onLike = { onToggleLike(photo.id, isLiked) },
+                        onTap = { onPhotoTap(photo) },
+                    )
+                }
+
+                itemsIndexed(
+                    items = photos.drop(1),
+                    key = { _, photo -> photo.id },
+                ) { _, photo ->
+                    val isLiked = photo.likedBy.contains(currentGuestId)
+                    MemoryCard(
+                        photo = photo,
+                        isLiked = isLiked,
+                        onLike = { onToggleLike(photo.id, isLiked) },
+                        onTap = { onPhotoTap(photo) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun GalleryHeader(onBack: () -> Unit, photoCount: Int) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
+            .statusBarsPadding()
+            .padding(vertical = Spacing.md),
     ) {
-        // Back button
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color.White)
+                .background(WarmGray50)
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
+                tint = WarmGray700,
                 modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             )
         }
-        Spacer(Modifier.width(Spacing.md))
-        Column(modifier = Modifier.weight(1f)) {
+
+        Spacer(Modifier.height(Spacing.lg))
+
+        Text(
+            text = "Captured Memories",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontWeight = FontWeight.Light,
+                letterSpacing = (-0.5).sp,
+            ),
+            color = WarmGray800,
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            text = "Moments shared with love",
+            style = MaterialTheme.typography.bodyMedium,
+            color = WarmGray400,
+        )
+
+        if (photoCount > 0) {
+            Spacer(Modifier.height(Spacing.sm))
             Text(
-                text = "Captured Memories",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
+                text = "$photoCount ${if (photoCount == 1) "memory" else "memories"}",
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
+                color = Gold,
             )
-            if (photoCount > 0) {
-                Text(
-                    text = "$photoCount beautiful moments",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                )
-            }
         }
+
+        Spacer(Modifier.height(Spacing.md))
     }
 }
 
-// ── Hero photo section ────────────────────────────────────────────────────────
+// ── Featured card ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun HeroPhotoSection(
+private fun FeaturedMemoryCard(
     photo: WeddingPhoto,
     isLiked: Boolean,
     onLike: () -> Unit,
     onTap: () -> Unit,
 ) {
-    val likeScale by animateFloatAsState(
-        targetValue = if (isLiked) 1.3f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "hero_like_scale",
-    )
-    var showHeart by remember { mutableStateOf(false) }
-    val heartAlpha = remember { Animatable(0f) }
-    val heartOffset = remember { Animatable(0f) }
-
-    LaunchedEffect(showHeart) {
-        if (showHeart) {
-            heartAlpha.snapTo(0.9f)
-            heartOffset.snapTo(0f)
-            launch { heartAlpha.animateTo(0f, tween(900, easing = FastOutLinearInEasing)) }
-            heartOffset.animateTo(-80f, tween(900))
-            showHeart = false
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.screenHorizontal)
-            .aspectRatio(3f / 4f)
+            .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(24.dp))
             .clickable(onClick = onTap),
     ) {
         AsyncImage(
-            model = photo.imageUrl,
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(photo.imageUrl)
+                .crossfade(700)
+                .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
 
-        // Gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.5f)),
-                        startY = 400f,
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.45f to Color.Transparent,
+                            1.0f to Color.Black.copy(alpha = 0.65f),
+                        ),
                     )
                 )
         )
 
-        // Top badge
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(16.dp)
+                .padding(12.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.25f))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .background(Color.Black.copy(alpha = 0.28f))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -360,7 +333,7 @@ private fun HeroPhotoSection(
                 imageVector = Icons.Default.AutoAwesome,
                 contentDescription = null,
                 tint = Gold,
-                modifier = Modifier.size(12.dp),
+                modifier = Modifier.size(10.dp),
             )
             Text(
                 text = "FEATURED MEMORY",
@@ -369,259 +342,195 @@ private fun HeroPhotoSection(
             )
         }
 
-        // Floating heart animation
-        if (heartAlpha.value > 0f) {
-            Icon(
-                imageVector = Icons.Default.Favorite,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = heartAlpha.value),
-                modifier = Modifier
-                    .size(52.dp)
-                    .align(Alignment.Center)
-                    .offset(y = heartOffset.value.dp),
-            )
-        }
-
-        // Bottom overlay
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 13.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
-            Column {
-                Text(
-                    text = "Captured with love",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
-                    color = Color.White.copy(alpha = 0.7f),
-                )
-                if (photo.uploadedBy.isNotBlank()) {
+            Column(modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)) {
+                if (photo.senderName.isNotBlank()) {
                     Text(
-                        text = photo.uploadedBy,
+                        text = photo.senderName,
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White,
-                    )
-                }
-            }
-            // Like button (consumes own touch via pointerInput)
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.2f))
-                    .pointerInput(isLiked) {
-                        detectTapGestures {
-                            onLike()
-                            if (!isLiked) showHeart = true
-                        }
-                    }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (isLiked) Color(0xFFE88888) else Color.White,
-                        modifier = Modifier.size(18.dp).scale(likeScale),
-                    )
-                    Text(
-                        text = if (isLiked) "Loved" else "Love",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White,
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ── Memory photo card ─────────────────────────────────────────────────────────
-
-@Composable
-private fun MemoryPhotoCard(
-    photo: WeddingPhoto,
-    modifier: Modifier = Modifier,
-    cornerRadius: androidx.compose.ui.unit.Dp = 20.dp,
-    isLiked: Boolean,
-    onLike: () -> Unit,
-    onTap: () -> Unit,
-) {
-    val likeScale by animateFloatAsState(
-        targetValue = if (isLiked) 1.3f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "like_scale",
-    )
-    var showHeart by remember { mutableStateOf(false) }
-    val heartAlpha = remember { Animatable(0f) }
-    val heartOffset = remember { Animatable(0f) }
-
-    LaunchedEffect(showHeart) {
-        if (showHeart) {
-            heartAlpha.snapTo(0.9f)
-            heartOffset.snapTo(0f)
-            launch { heartAlpha.animateTo(0f, tween(750, easing = FastOutLinearInEasing)) }
-            heartOffset.animateTo(-60f, tween(750))
-            showHeart = false
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(cornerRadius))
-            .clickable(onClick = onTap),
-    ) {
-        AsyncImage(
-            model = photo.imageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-
-        // Gradient overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
-                        startY = 200f,
-                    )
-                )
-        )
-
-        // Floating heart
-        if (heartAlpha.value > 0f) {
-            Icon(
-                imageVector = Icons.Default.Favorite,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = heartAlpha.value),
-                modifier = Modifier
-                    .size(36.dp)
-                    .align(Alignment.Center)
-                    .offset(y = heartOffset.value.dp),
-            )
-        }
-
-        // Bottom row: uploader + like
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            // Uploader info
-            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                if (photo.uploadedBy.isNotBlank()) {
-                    Text(
-                        text = photo.uploadedBy,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 if (photo.timestamp > 0L) {
                     Text(
                         text = formatTimeAgo(photo.timestamp),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.65f),
                     )
                 }
             }
-
-            // Like button (pointerInput prevents bubbling)
-            Box(
-                modifier = Modifier
-                    .pointerInput(isLiked) {
-                        detectTapGestures {
-                            onLike()
-                            if (!isLiked) showHeart = true
-                        }
-                    }
-                    .padding(4.dp),
-            ) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Like",
-                    tint = if (isLiked) Color(0xFFE88888) else Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(16.dp).scale(likeScale),
-                )
-            }
+            ElegantLikeButton(
+                isLiked = isLiked,
+                likeCount = photo.likedBy.size,
+                onToggle = onLike,
+            )
         }
     }
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
+// ── Regular memory card ───────────────────────────────────────────────────────
 
 @Composable
-private fun ElegantEmptyState() {
-    Column(
+private fun MemoryCard(
+    photo: WeddingPhoto,
+    isLiked: Boolean,
+    onLike: () -> Unit,
+    onTap: () -> Unit,
+) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(Spacing.xxl),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .aspectRatio(4f / 5f)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onTap),
     ) {
-        Spacer(Modifier.height(Spacing.xxl))
-        Icon(
-            imageVector = Icons.Default.PhotoLibrary,
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(photo.imageUrl)
+                .crossfade(600)
+                .build(),
             contentDescription = null,
-            tint = BlushDeep.copy(alpha = 0.3f),
-            modifier = Modifier.size(56.dp),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
         )
-        Spacer(Modifier.height(Spacing.lg))
-        Text(
-            text = "No memories yet",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-            textAlign = TextAlign.Center,
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.55f to Color.Transparent,
+                            1.0f to Color.Black.copy(alpha = 0.55f),
+                        ),
+                    )
+                )
         )
-        Spacer(Modifier.height(Spacing.sm))
-        Text(
-            text = "Be the first to capture\na beautiful moment",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center,
-        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 9.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (photo.senderName.isNotBlank()) {
+                Text(
+                    text = photo.senderName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 4.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            ElegantLikeButton(
+                isLiked = isLiked,
+                likeCount = photo.likedBy.size,
+                onToggle = onLike,
+                compact = true,
+            )
+        }
     }
 }
 
-// ── Upload button ─────────────────────────────────────────────────────────────
+// ── Like button ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun ElegantUploadButton(
-    isUploading: Boolean,
+private fun ElegantLikeButton(
+    isLiked: Boolean,
+    likeCount: Int,
+    onToggle: () -> Unit,
+    compact: Boolean = false,
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (isLiked) 1.35f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "like_scale",
+    )
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .pointerInput(isLiked) { detectTapGestures { onToggle() } }
+            .padding(horizontal = if (compact) 6.dp else 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            contentDescription = if (isLiked) "Unlike" else "Like",
+            tint = if (isLiked) Color(0xFFEA8A8A) else Color.White.copy(alpha = 0.85f),
+            modifier = Modifier
+                .size(if (compact) 14.dp else 17.dp)
+                .scale(scale),
+        )
+        if (likeCount > 0) {
+            Text(
+                text = likeCount.toString(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = if (compact) 10.sp else 12.sp,
+                ),
+                color = Color.White.copy(alpha = 0.85f),
+            )
+        }
+    }
+}
+
+// ── Add Memory floating button ────────────────────────────────────────────────
+
+@Composable
+private fun AddMemoryButton(
+    uploadState: UploadState,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    val isUploading = uploadState is UploadState.Loading
+    val label = when {
+        uploadState is UploadState.Loading && uploadState.total > 1 ->
+            "Uploading ${uploadState.current}/${uploadState.total}…"
+
+        isUploading -> "Uploading…"
+        else -> "Add Memory"
+    }
+
+    Surface(
         onClick = { if (!isUploading) onClick() },
-        modifier = modifier.height(52.dp),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = Gold),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        modifier = modifier,
+        shape = RoundedCornerShape(32.dp),
+        color = if (isUploading) WarmGray300 else Gold,
+        shadowElevation = 14.dp,
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(horizontal = Spacing.lg),
+            modifier = Modifier.padding(horizontal = 28.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (isUploading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     color = Color.White,
                     strokeWidth = 2.dp,
-                )
-                Text(
-                    text = "Uploading...",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White,
                 )
             } else {
                 Icon(
@@ -630,23 +539,92 @@ private fun ElegantUploadButton(
                     tint = Color.White,
                     modifier = Modifier.size(18.dp),
                 )
-                Text(
-                    text = "Add Memory",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White,
-                )
             }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.5.sp),
+                color = Color.White,
+            )
         }
+    }
+}
+
+// ── Loading shimmer ───────────────────────────────────────────────────────────
+
+@Composable
+private fun LoadingShimmer() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(240.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(28.dp),
+                color = Gold,
+                strokeWidth = 2.dp,
+            )
+            Text(
+                text = "Loading memories…",
+                style = MaterialTheme.typography.bodySmall,
+                color = WarmGray400,
+            )
+        }
+    }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun EmptyGalleryState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xxl, horizontal = Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(ChampagneLight),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.PhotoLibrary,
+                contentDescription = null,
+                tint = Gold.copy(alpha = 0.6f),
+                modifier = Modifier.size(36.dp),
+            )
+        }
+
+        Spacer(Modifier.height(Spacing.sm))
+
+        Text(
+            text = "No memories yet",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Light),
+            color = WarmGray700,
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = "Be the first to capture\na beautiful moment",
+            style = MaterialTheme.typography.bodyMedium,
+            color = WarmGray400,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
 // ── Fullscreen viewer ─────────────────────────────────────────────────────────
 
 @Composable
-private fun FullscreenPhotoDialog(
-    photo: WeddingPhoto,
-    onDismiss: () -> Unit,
-) {
+private fun FullscreenViewer(photo: WeddingPhoto, onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -658,7 +636,10 @@ private fun FullscreenPhotoDialog(
             contentAlignment = Alignment.Center,
         ) {
             AsyncImage(
-                model = photo.imageUrl,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(photo.imageUrl)
+                    .crossfade(400)
+                    .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
@@ -666,7 +647,6 @@ private fun FullscreenPhotoDialog(
                     .clickable(onClick = onDismiss),
             )
 
-            // Close button
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -674,7 +654,7 @@ private fun FullscreenPhotoDialog(
                     .padding(Spacing.md)
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .background(Color.White.copy(alpha = 0.12f))
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
@@ -686,23 +666,22 @@ private fun FullscreenPhotoDialog(
                 )
             }
 
-            // Bottom info
-            if (photo.uploadedBy.isNotBlank() || photo.timestamp > 0L) {
+            if (photo.senderName.isNotBlank() || photo.timestamp > 0L) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
                             )
                         )
                         .navigationBarsPadding()
                         .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 ) {
-                    if (photo.uploadedBy.isNotBlank()) {
+                    if (photo.senderName.isNotBlank()) {
                         Text(
-                            text = photo.uploadedBy,
+                            text = photo.senderName,
                             style = MaterialTheme.typography.titleSmall,
                             color = Color.White,
                         )
@@ -711,7 +690,7 @@ private fun FullscreenPhotoDialog(
                         Text(
                             text = formatTimeAgo(photo.timestamp),
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = Color.White.copy(alpha = 0.65f),
                         )
                     }
                 }
@@ -726,10 +705,10 @@ private fun formatTimeAgo(timestamp: Long): String {
     if (timestamp == 0L) return ""
     val diff = System.currentTimeMillis() - timestamp
     return when {
-        diff < 60_000L       -> "Just now"
-        diff < 3_600_000L    -> "${diff / 60_000}m ago"
-        diff < 86_400_000L   -> "${diff / 3_600_000}h ago"
-        diff < 604_800_000L  -> "${diff / 86_400_000}d ago"
+        diff < 60_000L -> "Just now"
+        diff < 3_600_000L -> "${diff / 60_000}m ago"
+        diff < 86_400_000L -> "${diff / 3_600_000}h ago"
+        diff < 604_800_000L -> "${diff / 86_400_000}d ago"
         else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
     }
 }

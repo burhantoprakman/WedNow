@@ -22,8 +22,9 @@ class GuestListViewModel @Inject constructor(
 
     val weddingId: String = checkNotNull(savedStateHandle[Screen.GuestList.ARG])
 
-    val guests: StateFlow<List<Guest>> = getGuestsUseCase(weddingId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Null = first Firestore snapshot not yet received (loading). Empty list = no guests. */
+    val guests: StateFlow<List<Guest>?> = getGuestsUseCase(weddingId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = null)
 
     val currentGuest: StateFlow<Guest?> = getCurrentGuestUseCase(weddingId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

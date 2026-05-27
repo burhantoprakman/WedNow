@@ -31,6 +31,9 @@ class JoinWeddingUseCase @Inject constructor(
         ).getOrElse { return Result.failure(it) }
 
         WeddingSessionManager.saveWeddingId(context, wedding.id)
+        // Persist the display name locally so photo uploads can tag themselves
+        // without an extra Firestore round-trip.
+        GuestSessionManager.saveGuestName(context, guestName.orEmpty())
         saveFcmTokenUseCase(wedding.id) // best-effort; ignore failure
 
         return Result.success(wedding.id)

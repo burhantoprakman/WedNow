@@ -120,6 +120,7 @@ fun ShareInvitationScreen(
                         onEnterWedding = onEnterWedding,
                         onBack = onBack,
                         snackbarHost = snackbarHost,
+                        deepLinkUrl = "https://wednow.app/join/${viewModel.weddingId}",
                     )
             }
         }
@@ -136,12 +137,13 @@ private fun ShareInvitationContent(
     onEnterWedding: () -> Unit,
     onBack: (() -> Unit)?,
     snackbarHost: SnackbarHostState,
+    deepLinkUrl: String,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val graphicsLayer = rememberGraphicsLayer()
 
-    val qrBitmap = remember(weddingId) { generateQrBitmap("wednow://join/$weddingId", 512) }
+    val qrBitmap = remember(weddingId) { generateQrBitmap(deepLinkUrl, 512) }
 
     Box(Modifier.fillMaxSize()) {
         // ── Page background ───────────────────────────────────────────────────
@@ -212,6 +214,7 @@ private fun ShareInvitationContent(
                     wedding = wedding,
                     weddingId = weddingId,
                     qrBitmap = qrBitmap,
+                    deepLinkUrl = deepLinkUrl,
                 )
             }
 
@@ -223,7 +226,7 @@ private fun ShareInvitationContent(
                     modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    // Share invitation as PDF with clickable link
+                    // Share invitation as PDF with clickable deep link
                     ActionButton(
                         icon = Icons.Default.Share,
                         label = "Share Invitation",
@@ -231,9 +234,9 @@ private fun ShareInvitationContent(
                         onClick = {
                             scope.launch {
                                 val bmp = graphicsLayer.toImageBitmap().asAndroidBitmap()
-                                val joinUrl =
-                                    "https://play.google.com/store/apps/details?id=${context.packageName}"
-                                val uri = createInvitationPdf(context, bmp, weddingId, joinUrl)
+                                // deepLinkUrl opens the app when installed; the hosted
+                                // page should redirect to Play Store when it is not.
+                                val uri = createInvitationPdf(context, bmp, weddingId, deepLinkUrl)
                                 if (uri != null) {
                                     val intent = Intent(Intent.ACTION_SEND).apply {
                                         type = "application/pdf"
@@ -263,9 +266,7 @@ private fun ShareInvitationContent(
                         onClick = {
                             scope.launch {
                                 val bmp = graphicsLayer.toImageBitmap().asAndroidBitmap()
-                                val joinUrl =
-                                    "https://play.google.com/store/apps/details?id=${context.packageName}"
-                                val bytes = buildInvitationPdfBytes(bmp, joinUrl)
+                                val bytes = buildInvitationPdfBytes(bmp, deepLinkUrl)
                                 val saved = if (bytes != null) savePdfToDocuments(
                                     context,
                                     bytes,
@@ -308,6 +309,7 @@ private fun RealInvitationCard(
     wedding: Wedding,
     weddingId: String,
     qrBitmap: Bitmap,
+    deepLinkUrl: String,
 ) {
     val context = LocalContext.current
     Box(
@@ -441,6 +443,11 @@ private fun RealInvitationCard(
                 }
 
                 // ── QR code
+                //
+                // Tapping the label or the QR image itself opens the deep link:
+                //   • App installed   → WedNow opens and the guest joins.
+                //   • App not installed → browser opens the hosted page which
+                //     redirects the guest to the Play Store.
                 Text(
                     text = "SCAN OR CLICK QR TO JOIN",
                     style = MaterialTheme.typography.labelSmall.copy(
@@ -449,7 +456,7 @@ private fun RealInvitationCard(
                         textDecoration = TextDecoration.Underline,
                     ),
                     color = WarmGray400,
-                    modifier = Modifier.clickable { openAppStore(context) },
+                    modifier = Modifier.clickable { openDeepLink(context, deepLinkUrl) },
                 )
                 Spacer(Modifier.height(12.dp))
 
@@ -459,12 +466,13 @@ private fun RealInvitationCard(
                         .clip(RoundedCornerShape(4.dp))
                         .border(1.dp, Gold.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
                         .background(Color.White)
-                        .padding(8.dp),
+                        .padding(8.dp)
+                        .clickable { openDeepLink(context, deepLinkUrl) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Image(
                         bitmap = qrBitmap.asImageBitmap(),
-                        contentDescription = "QR code",
+                        contentDescription = "Tap to join this wedding",
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -602,22 +610,23 @@ private fun ActionButton(
     }
 }
 
-// ── App store launcher ────────────────────────────────────────────────────────
+// ── Deep-link / App-store launcher ───────────────────────────────────────────
 
-private fun openAppStore(context: Context) {
-    val pkg = context.packageName
+/**
+ * Opens [url] via the standard ACTION_VIEW intent.
+ *
+ * Behaviour on Android:
+ *  • If [url] is the WedNow App Link (https://wednow.app/join/…) and the app is
+ *    installed, Android routes it directly to WedNow (no browser needed).
+ *  • If the app is **not** installed, the browser opens the page.  Host a simple
+ *    redirect page at https://wednow.app/join/{id} that sends guests to the
+ *    Play Store, e.g.:
+ *      <meta http-equiv="refresh" content="0; url=https://play.google.com/store/apps/details?id=com.wednowapp.wednow">
+ */
+private fun openDeepLink(context: Context, url: String) {
     runCatching {
         context.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
-    }.onFailure {
-        context.startActivity(
-            Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://play.google.com/store/apps/details?id=$pkg")
-            ).apply {
+            Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         )

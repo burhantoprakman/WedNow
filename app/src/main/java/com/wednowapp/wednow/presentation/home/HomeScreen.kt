@@ -985,16 +985,6 @@ private fun NavHubBottomSheet(
                 "Confirm your attendance",
                 onClick = { onDismiss(); onNavigateToRSVP() })
             NavHubItem(
-                Icons.Default.PhotoLibrary,
-                "Photos",
-                "View & share moments",
-                onClick = { onDismiss(); onNavigateToPhotos() })
-            NavHubItem(
-                Icons.Default.MenuBook,
-                "Guestbook",
-                "Leave a memory",
-                onClick = { onDismiss(); onNavigateToGuestbook() })
-            NavHubItem(
                 Icons.Default.PeopleAlt,
                 "Guests",
                 "See who's celebrating",

@@ -3,8 +3,10 @@ package com.wednowapp.wednow.presentation.onboarding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wednowapp.wednow.core.navigation.Screen
 import com.wednowapp.wednow.domain.usecase.JoinWeddingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,10 +17,17 @@ import javax.inject.Inject
 
 @HiltViewModel
 class JoinWeddingViewModel @Inject constructor(
-    private val joinWeddingUseCase: JoinWeddingUseCase
+    savedStateHandle: SavedStateHandle,
+    private val joinWeddingUseCase: JoinWeddingUseCase,
 ) : ViewModel() {
 
-    var weddingCode by mutableStateOf("")
+    /**
+     * Pre-filled when the screen is reached via a QR deep link
+     * (route = join_wedding_deep/{code}). Empty string for the manual-entry flow.
+     */
+    var weddingCode by mutableStateOf(
+        savedStateHandle.get<String>(Screen.JoinWedding.CODE_ARG).orEmpty()
+    )
         private set
     var guestName by mutableStateOf("")
         private set

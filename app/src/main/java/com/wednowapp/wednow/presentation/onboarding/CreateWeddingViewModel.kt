@@ -17,6 +17,8 @@ import com.wednowapp.wednow.domain.model.TimelineEventData
 import com.wednowapp.wednow.domain.usecase.CreateWeddingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +27,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import javax.inject.Inject
 
 @HiltViewModel
@@ -69,8 +72,15 @@ class CreateWeddingViewModel @Inject constructor(
     var showDatePicker by mutableStateOf(false); private set
     var showTimePicker by mutableStateOf(false); private set
 
+    /** Raw millis of the user-selected date — fed back into DatePickerState so
+     *  the picker opens on the already-chosen date rather than the current month. */
+    var selectedDateMillis by mutableStateOf<Long?>(null); private set
+
     // ── Step 3: Venue ─────────────────────────────────────────────────────────
     var venue by mutableStateOf(""); private set
+    var isVenueSearching by mutableStateOf(false); private set
+    var isVenueConfirmed by mutableStateOf(false); private set
+    private var venueSearchJob: Job? = null
 
     // ── Step 4: Cover Image ───────────────────────────────────────────────────
     var coverImageUri by mutableStateOf<Uri?>(null); private set
@@ -134,7 +144,14 @@ class CreateWeddingViewModel @Inject constructor(
     }
 
     fun onDateSelected(ms: Long) {
-        formattedDate = SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH).format(Date(ms))
+        selectedDateMillis = ms
+        // DatePickerState always returns midnight UTC. Using the device's local
+        // timezone here would shift the date backwards in UTC+ regions (e.g.
+        // Turkey UTC+3: midnight UTC = 21:00 the previous day locally).
+        // Force UTC so the displayed date matches exactly what the user tapped.
+        formattedDate = SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH)
+            .apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .format(Date(ms))
         showDatePicker = false
     }
 
@@ -151,6 +168,18 @@ class CreateWeddingViewModel @Inject constructor(
 
     fun onVenueChange(v: String) {
         venue = v
+        isVenueConfirmed = false
+        venueSearchJob?.cancel()
+        if (v.length >= 3) {
+            isVenueSearching = true
+            venueSearchJob = viewModelScope.launch {
+                delay(650) // debounce — simulate "looking up" the venue
+                isVenueSearching = false
+                isVenueConfirmed = true
+            }
+        } else {
+            isVenueSearching = false
+        }
     }
 
     // ── Step 4 ────────────────────────────────────────────────────────────────

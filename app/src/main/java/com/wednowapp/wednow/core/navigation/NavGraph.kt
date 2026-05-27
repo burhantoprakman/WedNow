@@ -1,11 +1,14 @@
 package com.wednowapp.wednow.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.wednowapp.wednow.core.session.WeddingSessionManager
 import com.wednowapp.wednow.presentation.broadcast.BroadcastScreen
 import com.wednowapp.wednow.presentation.chat.ChatScreen
 import com.wednowapp.wednow.presentation.chat.DirectMessageScreen
@@ -24,10 +27,39 @@ import com.wednowapp.wednow.presentation.timeline.WeddingTimelineScreen
 import com.wednowapp.wednow.presentation.weddinginfo.WeddingInfoScreen
 
 @Composable
-fun WedNowNavGraph(navController: NavHostController) {
+fun WedNowNavGraph(
+    navController: NavHostController,
+    /**
+     * Non-null when the app was launched (or resumed) via a QR-code deep link.
+     * The NavGraph uses this value to:
+     *  • skip the Splash screen entirely, and
+     *  • jump straight to WeddingHome (already a member) or the JoinWedding screen
+     *    with the code pre-filled (new guest).
+     */
+    deepLinkWeddingId: String? = null,
+) {
+    val context = LocalContext.current
+
+    // Compute the start destination once. When a deep link is present we skip
+    // the Splash screen and route the user directly to the right place.
+    val startDestination = remember(deepLinkWeddingId) {
+        if (deepLinkWeddingId != null) {
+            val savedId = WeddingSessionManager.getWeddingId(context)
+            if (savedId == deepLinkWeddingId) {
+                // Guest is already a member of this wedding — go straight to Home.
+                Screen.WeddingHome.createRoute(deepLinkWeddingId)
+            } else {
+                // New guest — open JoinWedding with the code pre-filled.
+                Screen.JoinWedding.createDeepLinkRoute(deepLinkWeddingId)
+            }
+        } else {
+            Screen.Splash.route
+        }
+    }
+
     NavHost(
         navController = navController,
-        startDestination = Screen.Splash.route
+        startDestination = startDestination,
     ) {
 
         // ── Splash ────────────────────────────────────────────────────────────
@@ -65,11 +97,35 @@ fun WedNowNavGraph(navController: NavHostController) {
             )
         }
 
+        // ── Join Wedding (manual entry — no pre-filled code) ──────────────────
         composable(Screen.JoinWedding.route) {
             JoinWeddingScreen(
                 onWeddingJoined = { weddingId ->
                     navController.navigate(Screen.WeddingHome.createRoute(weddingId)) {
                         popUpTo(Screen.CreateWedding.route) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ── Join Wedding via deep link (code pre-filled from QR scan) ─────────
+        //
+        // This route is the landing point when the app is opened by scanning
+        // or tapping a WedNow QR / invitation link.  The wedding code is embedded
+        // in the route path so the ViewModel can read it from SavedStateHandle.
+        composable(
+            route = Screen.JoinWedding.deepLinkRoute,
+            arguments = listOf(
+                navArgument(Screen.JoinWedding.CODE_ARG) { type = NavType.StringType }
+            ),
+        ) {
+            JoinWeddingScreen(
+                onWeddingJoined = { weddingId ->
+                    navController.navigate(Screen.WeddingHome.createRoute(weddingId)) {
+                        // Clear the deep-link join screen from the back stack so
+                        // pressing Back from WeddingHome exits the app cleanly.
+                        popUpTo(Screen.JoinWedding.deepLinkRoute) { inclusive = true }
                     }
                 },
                 onBack = { navController.popBackStack() }

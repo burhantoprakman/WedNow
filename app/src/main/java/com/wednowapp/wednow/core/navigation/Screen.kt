@@ -5,7 +5,15 @@ sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Onboarding : Screen("onboarding")
     object CreateWedding : Screen("create_wedding")
-    object JoinWedding : Screen("join_wedding")
+    object JoinWedding : Screen("join_wedding") {
+        /**
+         * Route variant that carries a pre-filled wedding code — used exclusively
+         * when the app is opened via a deep link so the code arrives already typed in.
+         */
+        const val CODE_ARG = "code"
+        const val deepLinkRoute = "join_wedding_deep/{$CODE_ARG}"
+        fun createDeepLinkRoute(code: String) = "join_wedding_deep/$code"
+    }
 
     object WeddingHome : Screen("wedding_home/{weddingId}") {
         const val ARG = "weddingId"

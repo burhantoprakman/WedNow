@@ -106,6 +106,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -252,10 +254,11 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
                 1 -> CoupleInfoStep(vm)
                 2 -> DateTimeStep(vm)
                 3 -> VenueStep(vm)
-                4 -> CoverImageStep(vm)
+                4 -> TimelineStep(vm)
                 5 -> MenuStep(vm)
                 6 -> DressCodeStep(vm)
-                7 -> TimelineStep(vm)
+                7 -> CoverImageStep(vm)
+
             }
         }
 
@@ -263,20 +266,26 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.lg)
+                .padding(horizontal = Spacing.screenHorizontal)
+                .padding(bottom = Spacing.lg, top = Spacing.xs)
                 .navigationBarsPadding(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             if (step > 1) {
-                TextButton(onClick = vm::goBack) {
+                TextButton(
+                    onClick = vm::goBack,
+                    modifier = Modifier.width(80.dp),
+                ) {
                     Text("Back", style = MaterialTheme.typography.labelLarge, color = WarmGray400)
                 }
             }
-            Spacer(Modifier.weight(1f))
+            // Always expands to fill remaining width — never floats awkwardly
             ElegantPrimaryButton(
                 label = if (step == 7) "Review" else "Continue",
                 enabled = vm.isNextEnabled(),
                 onClick = vm::goNext,
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -392,8 +401,10 @@ private fun CoupleInfoStep(vm: CreateWeddingViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
@@ -479,23 +490,47 @@ private fun CoupleInfoStep(vm: CreateWeddingViewModel) {
 private fun DateTimeStep(vm: CreateWeddingViewModel) {
     // Date picker dialog
     if (vm.showDatePicker) {
-        val dpState = rememberDatePickerState()
-        BasicAlertDialog(onDismissRequest = vm::closeDatePicker) {
+        // Pre-populate with the previously chosen date so re-opening lands on
+        // the same month/day instead of jumping back to "today".
+        val dpState = rememberDatePickerState(
+            initialSelectedDateMillis = vm.selectedDateMillis,
+        )
+        Dialog(
+            onDismissRequest = vm::closeDatePicker,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Card(
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Ivory),
             ) {
-                Column(Modifier.padding(Spacing.md)) {
+                Column {
                     DatePicker(
                         state = dpState,
+                        modifier = Modifier.fillMaxWidth(),
                         colors = DatePickerDefaults.colors(
+                            // Container / chrome
                             containerColor = Ivory,
                             titleContentColor = WarmGray600,
                             headlineContentColor = WarmGray800,
+                            navigationContentColor = WarmGray600,
+                            // Weekday header row (Mon Tue Wed …)
+                            weekdayContentColor = WarmGray500,
+                            // All regular day numbers — MUST be dark to be readable
+                            dayContentColor = WarmGray800,
+                            disabledDayContentColor = WarmGray300,
+                            // Selected day — gold circle + white text
                             selectedDayContainerColor = Gold,
                             selectedDayContentColor = Color.White,
+                            disabledSelectedDayContainerColor = WarmGray200,
+                            disabledSelectedDayContentColor = WarmGray400,
+                            // Today ring
                             todayDateBorderColor = Gold,
-                            todayContentColor = Gold,
+                            todayContentColor = GoldDeep,
+                            // Year picker
+                            yearContentColor = WarmGray700,
+                            currentYearContentColor = GoldDeep,
+                            selectedYearContainerColor = Gold,
+                            selectedYearContentColor = Color.White,
                         ),
                     )
                     Row(
@@ -522,7 +557,8 @@ private fun DateTimeStep(vm: CreateWeddingViewModel) {
 
     // Time picker dialog
     if (vm.showTimePicker) {
-        val tpState = rememberTimePickerState(is24Hour = false)
+        // Default to 3 PM (hour=15) — weddings almost always start in the afternoon.
+        val tpState = rememberTimePickerState(initialHour = 15, is24Hour = false)
         BasicAlertDialog(onDismissRequest = vm::closeTimePicker) {
             Card(
                 shape = RoundedCornerShape(28.dp),
@@ -541,13 +577,27 @@ private fun DateTimeStep(vm: CreateWeddingViewModel) {
                     TimePicker(
                         state = tpState,
                         colors = TimePickerDefaults.colors(
+                            // Clock face
                             clockDialColor = ChampagneLight,
+                            // Selected number on dial — white on gold selector
                             clockDialSelectedContentColor = Color.White,
+                            // All unselected hour / minute numbers on the dial
+                            clockDialUnselectedContentColor = WarmGray700,
+                            // Gold clock hand / selector dot
                             selectorColor = Gold,
                             containerColor = Ivory,
+                            // AM / PM segment strip — themed, NO system green
+                            periodSelectorBorderColor = Gold.copy(alpha = 0.35f),
+                            periodSelectorSelectedContainerColor = Gold,
+                            periodSelectorSelectedContentColor = Color.White,
+                            periodSelectorUnselectedContainerColor = WarmGray50,
+                            periodSelectorUnselectedContentColor = WarmGray600,
+                            // Hour / minute selector boxes (the rectangular tabs)
                             timeSelectorSelectedContainerColor = Gold,
                             timeSelectorSelectedContentColor = Color.White,
                             timeSelectorUnselectedContainerColor = WarmGray100,
+                            // Unselected tab text — must be readable on WarmGray100
+                            timeSelectorUnselectedContentColor = WarmGray700,
                         ),
                     )
                     Spacer(Modifier.height(Spacing.lg))
@@ -574,8 +624,10 @@ private fun DateTimeStep(vm: CreateWeddingViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
@@ -651,8 +703,10 @@ private fun VenueStep(vm: CreateWeddingViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
@@ -732,8 +786,10 @@ private fun CoverImageStep(vm: CreateWeddingViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
@@ -848,11 +904,16 @@ private fun CoverImageStep(vm: CreateWeddingViewModel) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MenuStep(vm: CreateWeddingViewModel) {
+    // Accordion: −1 = all collapsed, otherwise the index of the open course
+    var expandedCourseIdx by remember { mutableStateOf(-1) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -870,6 +931,13 @@ private fun MenuStep(vm: CreateWeddingViewModel) {
             MenuCourseEditor(
                 course = course,
                 courseIdx = courseIdx,
+                isExpanded = expandedCourseIdx == courseIdx,
+                onToggle = {
+                    // Tapping the open course collapses it; tapping any other collapses
+                    // the old one and expands the new one — true accordion behaviour.
+                    expandedCourseIdx =
+                        if (expandedCourseIdx == courseIdx) -1 else courseIdx
+                },
                 onAddItem = { item -> vm.onMenuItemAdd(courseIdx, item) },
                 onRemoveItem = { itemIdx -> vm.onMenuItemRemove(courseIdx, itemIdx) },
             )
@@ -884,24 +952,34 @@ private fun MenuStep(vm: CreateWeddingViewModel) {
 private fun MenuCourseEditor(
     course: com.wednowapp.wednow.domain.model.MenuCourseData,
     courseIdx: Int,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
     onAddItem: (String) -> Unit,
     onRemoveItem: (Int) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     var newItem by remember { mutableStateOf("") }
+    var selectedTags by remember { mutableStateOf(setOf<String>()) }
+
+    val dietaryOptions = listOf(
+        "🌿" to "Veg",
+        "🌱" to "Vegan",
+        "☪" to "Halal",
+        "✡" to "Kosher",
+        "🌾" to "GF",
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = if (expanded) WarmGray50 else Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (expanded) 0.dp else 2.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isExpanded) WarmGray50 else Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isExpanded) 0.dp else 2.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Header row
+            // ── Header row ────────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { expanded = !expanded }
+                    .clickable { onToggle() }
                     .padding(horizontal = Spacing.md, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -919,25 +997,26 @@ private fun MenuCourseEditor(
                     Text(
                         course.courseName,
                         style = MaterialTheme.typography.titleSmall,
-                        color = WarmGray800
+                        color = WarmGray800,
                     )
                     Text(
-                        text = if (course.items.isEmpty()) "No dishes added" else "${course.items.size} dish${if (course.items.size == 1) "" else "es"}",
+                        text = if (course.items.isEmpty()) "No dishes added"
+                        else "${course.items.size} dish${if (course.items.size == 1) "" else "es"}",
                         style = MaterialTheme.typography.bodySmall,
                         color = WarmGray400,
                     )
                 }
                 Icon(
-                    imageVector = if (expanded) Icons.Default.Close else Icons.Default.Add,
+                    imageVector = if (isExpanded) Icons.Default.Close else Icons.Default.Add,
                     contentDescription = null,
-                    tint = if (expanded) WarmGray400 else Gold,
+                    tint = if (isExpanded) WarmGray400 else Gold,
                     modifier = Modifier.size(20.dp),
                 )
             }
 
-            // Expanded content
+            // ── Expanded body ─────────────────────────────────────────────────
             AnimatedVisibility(
-                visible = expanded,
+                visible = isExpanded,
                 enter = expandVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
                 exit = shrinkVertically() + fadeOut(),
             ) {
@@ -945,14 +1024,13 @@ private fun MenuCourseEditor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.md)
-                        .padding(bottom = Spacing.md)
+                        .padding(bottom = Spacing.md),
                 ) {
                     HorizontalDivider(color = WarmGray100, thickness = 0.5.dp)
                     Spacer(Modifier.height(Spacing.sm))
 
-                    // Existing items
+                    // Added dishes
                     if (course.items.isNotEmpty()) {
-                        @OptIn(ExperimentalLayoutApi::class)
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -965,7 +1043,57 @@ private fun MenuCourseEditor(
                         Spacer(Modifier.height(Spacing.sm))
                     }
 
-                    // Add new item row
+                    // ── Dietary tags ──────────────────────────────────────────
+                    Text(
+                        "Dietary tags",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = WarmGray400,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        dietaryOptions.forEach { (emoji, label) ->
+                            val key = "$emoji $label"
+                            val selected = key in selectedTags
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(
+                                        if (selected) Gold.copy(alpha = 0.12f)
+                                        else Color.Transparent
+                                    )
+                                    .border(
+                                        width = if (selected) 1.5.dp else 1.dp,
+                                        color = if (selected) Gold else WarmGray200,
+                                        shape = RoundedCornerShape(20.dp),
+                                    )
+                                    .clickable {
+                                        selectedTags =
+                                            if (selected) selectedTags - key
+                                            else selectedTags + key
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(emoji, fontSize = 12.sp)
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (selected) FontWeight.SemiBold
+                                        else FontWeight.Normal,
+                                    ),
+                                    color = if (selected) GoldDeep else WarmGray500,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(Spacing.sm))
+
+                    // ── Add new dish row ──────────────────────────────────────
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -976,9 +1104,9 @@ private fun MenuCourseEditor(
                             onValueChange = { newItem = it },
                             placeholder = {
                                 Text(
-                                    "Add a dish...",
+                                    "Dish name...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = WarmGray300
+                                    color = WarmGray300,
                                 )
                             },
                             modifier = Modifier.weight(1f),
@@ -997,7 +1125,12 @@ private fun MenuCourseEditor(
                             ),
                             keyboardActions = KeyboardActions(onDone = {
                                 if (newItem.isNotBlank()) {
-                                    onAddItem(newItem); newItem = ""
+                                    val tagStr = selectedTags.joinToString(" ")
+                                    val fullItem = if (tagStr.isNotEmpty())
+                                        "${newItem.trim()}  $tagStr" else newItem.trim()
+                                    onAddItem(fullItem)
+                                    newItem = ""
+                                    selectedTags = emptySet()
                                 }
                             }),
                         )
@@ -1007,7 +1140,12 @@ private fun MenuCourseEditor(
                                 .clip(CircleShape)
                                 .background(if (newItem.isNotBlank()) Gold else WarmGray100)
                                 .clickable(enabled = newItem.isNotBlank()) {
-                                    onAddItem(newItem); newItem = ""
+                                    val tagStr = selectedTags.joinToString(" ")
+                                    val fullItem = if (tagStr.isNotEmpty())
+                                        "${newItem.trim()}  $tagStr" else newItem.trim()
+                                    onAddItem(fullItem)
+                                    newItem = ""
+                                    selectedTags = emptySet()
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -1069,8 +1207,10 @@ private fun DressCodeStep(vm: CreateWeddingViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
@@ -1188,8 +1328,10 @@ private fun TimelineStep(vm: CreateWeddingViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = Spacing.screenHorizontal,
-            vertical = Spacing.xl
+            start = Spacing.screenHorizontal,
+            end = Spacing.screenHorizontal,
+            top = Spacing.md,
+            bottom = Spacing.xl,
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -1370,13 +1512,62 @@ private fun AddEventSheet(
             Text("Add Event", style = MaterialTheme.typography.headlineSmall, color = WarmGray800)
             Spacer(Modifier.height(Spacing.xs))
 
-            ElegantTextField(
-                value = time,
-                onValueChange = { time = it },
-                label = "Time",
-                placeholder = "14:00  or  2:00 PM",
-                imeAction = ImeAction.Next,
-            )
+            // ── Time-slot chips (30-min intervals, 8 AM → 11:30 PM) ───────────
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Time",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = WarmGray500,
+                )
+                val timeSlots = remember {
+                    buildList {
+                        // 480 min = 8:00 AM … 1410 min = 11:30 PM, step 30 min
+                        for (totalMinutes in 480..1410 step 30) {
+                            val h = totalMinutes / 60
+                            val m = totalMinutes % 60
+                            val amPm = if (h < 12) "AM" else "PM"
+                            val displayHour = when {
+                                h == 0 -> 12
+                                h > 12 -> h - 12
+                                else -> h
+                            }
+                            add("$displayHour:${m.toString().padStart(2, '0')} $amPm")
+                        }
+                    }
+                }
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    timeSlots.forEach { slot ->
+                        val selected = time == slot
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (selected) Gold else Color.White)
+                                .border(
+                                    width = if (selected) 0.dp else 1.dp,
+                                    color = if (selected) Gold else WarmGray200,
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                .clickable { time = slot }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                slot,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (selected) FontWeight.SemiBold
+                                    else FontWeight.Normal,
+                                ),
+                                color = if (selected) Color.White else WarmGray600,
+                            )
+                        }
+                    }
+                }
+            }
 
             ElegantTextField(
                 value = title,

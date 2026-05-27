@@ -33,10 +33,12 @@ class GuestbookFirestoreService @Inject constructor(
         postsRef(weddingId).document(post.id).set(post.toMap()).await()
     }
 
-    private fun GuestbookPost.toMap(): Map<String, Any> = mapOf(
+    private fun GuestbookPost.toMap(): Map<String, Any?> = mapOf(
         "guestId" to guestId,
+        "senderName" to senderName,
         "message" to message,
-        "timestamp" to timestamp
+        "photoUrls" to photoUrls,
+        "timestamp" to timestamp,
     )
 
     private fun DocumentSnapshot.toPost(): GuestbookPost? {
@@ -45,8 +47,11 @@ class GuestbookFirestoreService @Inject constructor(
             GuestbookPost(
                 id = id,
                 guestId = getString("guestId") ?: "",
+                senderName = getString("senderName") ?: "",
                 message = getString("message") ?: "",
-                timestamp = getLong("timestamp") ?: 0L
+                photoUrls = (get("photoUrls") as? List<*>)
+                    ?.filterIsInstance<String>() ?: emptyList(),
+                timestamp = getLong("timestamp") ?: 0L,
             )
         }.getOrNull()
     }
