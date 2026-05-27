@@ -13,6 +13,7 @@ import com.wednowapp.wednow.presentation.broadcast.BroadcastScreen
 import com.wednowapp.wednow.presentation.chat.ChatScreen
 import com.wednowapp.wednow.presentation.chat.DirectMessageScreen
 import com.wednowapp.wednow.presentation.guestbook.GuestbookScreen
+import com.wednowapp.wednow.presentation.guestmanagement.GuestManagementScreen
 import com.wednowapp.wednow.presentation.guests.GuestListScreen
 import com.wednowapp.wednow.presentation.home.HomeScreen
 import com.wednowapp.wednow.presentation.notifications.NotificationsScreen
@@ -87,7 +88,10 @@ fun WedNowNavGraph(
         composable(Screen.CreateWedding.route) {
             CreateWeddingScreen(
                 onWeddingCreated = { weddingId ->
-                    navController.navigate(Screen.ShareInvitation.createRoute(weddingId)) {
+                    // After creation, show Guest Management before ShareInvitation
+                    navController.navigate(
+                        Screen.GuestManagement.createRoute(weddingId, fromOnboarding = true)
+                    ) {
                         popUpTo(Screen.CreateWedding.route) { inclusive = true }
                     }
                 },
@@ -185,7 +189,13 @@ fun WedNowNavGraph(
                 onNavigateToGuestbook = { navController.navigate(Screen.Guestbook.createRoute(weddingId)) },
                 onNavigateToPhotos = { navController.navigate(Screen.Photos.createRoute(weddingId)) },
                 onNavigateToWeddingInfo = { navController.navigate(Screen.WeddingInfo.createRoute(weddingId)) },
-                onNavigateToGuests = { navController.navigate(Screen.GuestList.createRoute(weddingId)) },
+                onNavigateToGuests = {
+                    navController.navigate(
+                        Screen.GuestManagement.createRoute(
+                            weddingId
+                        )
+                    )
+                },
                 onNavigateToChat = { navController.navigate(Screen.Chat.createRoute(weddingId)) },
                 onNavigateToBroadcasts = { navController.navigate(Screen.Broadcasts.createRoute(weddingId)) },
                 onNavigateToNotifications = { navController.navigate(Screen.Notifications.createRoute(weddingId)) },
@@ -206,6 +216,31 @@ fun WedNowNavGraph(
             arguments = listOf(navArgument(Screen.GuestList.ARG) { type = NavType.StringType })
         ) {
             GuestListScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ── Guest Management ──────────────────────────────────────────────────
+        composable(
+            route = Screen.GuestManagement.route,
+            arguments = listOf(
+                navArgument(Screen.GuestManagement.ARG) { type = NavType.StringType },
+                navArgument(Screen.GuestManagement.FROM_ONBOARDING) { type = NavType.BoolType },
+            ),
+        ) { backStackEntry ->
+            val weddingId =
+                backStackEntry.arguments?.getString(Screen.GuestManagement.ARG) ?: return@composable
+            val fromOnboarding =
+                backStackEntry.arguments?.getBoolean(Screen.GuestManagement.FROM_ONBOARDING)
+                    ?: false
+            GuestManagementScreen(
+                onBack = { navController.popBackStack() },
+                onContinue = if (fromOnboarding) {
+                    {
+                        navController.navigate(Screen.ShareInvitation.createRoute(weddingId)) {
+                            popUpTo(Screen.GuestManagement.route) { inclusive = true }
+                        }
+                    }
+                } else null,
+            )
         }
 
         // ── Sub-screens ───────────────────────────────────────────────────────

@@ -308,40 +308,8 @@ private fun TimelineHeader(wedding: Wedding, onBack: () -> Unit) {
                 color      = BlushDeep.copy(alpha = 0.85f),
             ),
         )
-
-        if (wedding.name.isNotBlank() || wedding.date.isNotBlank()) {
-            Spacer(Modifier.height(Spacing.md))
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                if (wedding.name.isNotBlank()) {
-                    HeaderPill(icon = Icons.Default.Favorite, text = wedding.name)
-                }
-                if (wedding.date.isNotBlank()) {
-                    HeaderPill(icon = Icons.Default.CalendarToday, text = wedding.date)
-                }
-            }
-        }
-
         Spacer(Modifier.height(Spacing.lg))
         OrnamentDivider()
-    }
-}
-
-@Composable
-private fun HeaderPill(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White.copy(alpha = 0.72f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(icon, null, Modifier.size(12.dp), Gold)
-        Text(
-            text  = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

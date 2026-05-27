@@ -182,7 +182,7 @@ fun CreateWeddingScreen(
             ) { step ->
                 when (step) {
                     0 -> WelcomeStep(onBegin = viewModel::goNext, onJoin = onJoinWeddingClick)
-                    8 -> InvitationStep(
+                    7 -> InvitationStep(
                         vm = viewModel,
                         isLoading = createState is CreateWeddingState.Loading
                     )
@@ -194,13 +194,13 @@ fun CreateWeddingScreen(
     }
 }
 
-// ── Shared step scaffold (steps 1–7) ─────────────────────────────────────────
+// ── Shared step scaffold (steps 1–6) ─────────────────────────────────────────
 
 @Composable
 private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
-    val buildingStep = step          // 1-indexed inside 1..7
+    val buildingStep = step          // 1-indexed inside 1..6
     val progress by animateFloatAsState(
-        targetValue = (buildingStep - 1) / 7f,
+        targetValue = (buildingStep - 1) / 6f,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "progress",
     )
@@ -254,11 +254,9 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
                 1 -> CoupleInfoStep(vm)
                 2 -> DateTimeStep(vm)
                 3 -> VenueStep(vm)
-                4 -> TimelineStep(vm)
-                5 -> MenuStep(vm)
-                6 -> DressCodeStep(vm)
-                7 -> CoverImageStep(vm)
-
+                4 -> MenuStep(vm)
+                5 -> DressCodeStep(vm)
+                6 -> CoverImageStep(vm)
             }
         }
 
@@ -282,7 +280,7 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
             }
             // Always expands to fill remaining width — never floats awkwardly
             ElegantPrimaryButton(
-                label = if (step == 7) "Review" else "Continue",
+                label = if (step == 6) "Review" else "Continue",
                 enabled = vm.isNextEnabled(),
                 onClick = vm::goNext,
                 modifier = Modifier.weight(1f),
@@ -793,7 +791,7 @@ private fun CoverImageStep(vm: CreateWeddingViewModel) {
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        item { StepLabel("04", "Your Photo") }
+        item { StepLabel("06", "Your Photo") }
         item {
             Text(
                 "Choose a beautiful photo that represents your love story.",
@@ -917,7 +915,7 @@ private fun MenuStep(vm: CreateWeddingViewModel) {
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        item { StepLabel("05", "Wedding Menu") }
+        item { StepLabel("04", "Wedding Menu") }
         item {
             Text(
                 "Build your menu — tap a course to add dishes.",
@@ -1214,7 +1212,7 @@ private fun DressCodeStep(vm: CreateWeddingViewModel) {
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
-        item { StepLabel("06", "Dress Code") }
+        item { StepLabel("05", "Dress Code") }
         item {
             Text(
                 "How would you like your guests to dress?",

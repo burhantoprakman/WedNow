@@ -105,6 +105,8 @@ import com.wednowapp.wednow.ui.theme.GoldDeep
 import com.wednowapp.wednow.ui.theme.GoldLight
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
+import com.wednowapp.wednow.ui.theme.WarmGray500
+import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -249,9 +251,11 @@ private fun HomeContent(
             item { Spacer(Modifier.height(Spacing.lg)) }
             item {
                 FeaturePreviewSection(
-                    onNavigateToPhotos,
-                    onNavigateToGuestbook,
-                    Modifier.alpha(previewAlpha)
+                    onNavigateToPhotos = onNavigateToPhotos,
+                    onNavigateToGuestbook = onNavigateToGuestbook,
+                    onNavigateToWeddingInfo = onNavigateToWeddingInfo,
+                    onNavigateToGuests = onNavigateToGuests,
+                    modifier = Modifier.alpha(previewAlpha),
                 )
             }
             item { Spacer(Modifier.height(Spacing.xxl)) }
@@ -268,8 +272,6 @@ private fun HomeContent(
             onNavigateToGuestbook = onNavigateToGuestbook,
             onNavigateToGuests = onNavigateToGuests,
             onNavigateToChat = onNavigateToChat,
-            onNavigateToWeddingInfo = onNavigateToWeddingInfo,
-            onNavigateToTimeline = onNavigateToTimeline,
             isPrivileged = isPrivileged,
             onNavigateToShareInvitation = onNavigateToShareInvitation,
         )
@@ -687,7 +689,7 @@ private fun InfoChip(
                         letterSpacing = 0.5.sp,
                         fontSize = 8.sp
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
+                    color = WarmGray500,
                 )
                 Text(
                     text = value,
@@ -695,7 +697,7 @@ private fun InfoChip(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
                     ),
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
+                    color = WarmGray800,
                     maxLines = 1,
                 )
             }
@@ -795,32 +797,72 @@ private fun WeddingExperienceCard(onClick: () -> Unit, modifier: Modifier = Modi
 private fun FeaturePreviewSection(
     onNavigateToPhotos: () -> Unit,
     onNavigateToGuestbook: () -> Unit,
+    onNavigateToWeddingInfo: () -> Unit,
+    onNavigateToGuests: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.screenHorizontal),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        FeaturePreviewCard(
-            icon = Icons.Default.PhotoLibrary,
-            iconBg = GoldDeep,
-            iconTint = ChampagneLight,
-            title = "Photos",
-            subtitle = "Relive beautiful moments",
-            onClick = onNavigateToPhotos,
-            modifier = Modifier.weight(1f),
-        )
-        FeaturePreviewCard(
-            icon = Icons.Default.MenuBook,
-            iconBg = ChampagneLight,
-            iconTint = GoldDeep,
-            title = "Guestbook",
-            subtitle = "Share your love and wishes",
-            onClick = onNavigateToGuestbook,
-            modifier = Modifier.weight(1f),
-        )
+        // Row 1
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            FeaturePreviewCard(
+                icon = Icons.Default.PhotoLibrary,
+                iconBg = GoldDeep,
+                iconTint = ChampagneLight,
+                title = "Photos",
+                subtitle = "Relive beautiful moments",
+                onClick = onNavigateToPhotos,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp),
+            )
+            FeaturePreviewCard(
+                icon = Icons.Default.MenuBook,
+                iconBg = ChampagneLight,
+                iconTint = GoldDeep,
+                title = "Guestbook",
+                subtitle = "Share your love and wishes",
+                onClick = onNavigateToGuestbook,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp),
+            )
+        }
+        // Row 2
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            FeaturePreviewCard(
+                icon = Icons.Default.Info,
+                iconBg = BlushLight,
+                iconTint = BlushDeep,
+                title = "Wedding Info",
+                subtitle = "Venue, dress code & menu",
+                onClick = onNavigateToWeddingInfo,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp),
+            )
+            FeaturePreviewCard(
+                icon = Icons.Default.PeopleAlt,
+                iconBg = GoldLight,
+                iconTint = GoldDeep,
+                title = "Guests",
+                subtitle = "See who's celebrating",
+                onClick = onNavigateToGuests,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp),
+            )
+        }
     }
 }
 
@@ -843,14 +885,14 @@ private fun FeaturePreviewCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp),
+                .fillMaxSize()                              // fills the fixed height from the modifier
+                .padding(horizontal = 16.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(iconBg),
                 contentAlignment = Alignment.Center,
@@ -859,7 +901,7 @@ private fun FeaturePreviewCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
             Text(
@@ -879,7 +921,8 @@ private fun FeaturePreviewCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(4.dp))
+            // Pushes the arrow to the bottom regardless of subtitle length
+            Spacer(Modifier.weight(1f))
             Text(
                 text = "→",
                 style = TextStyle(fontSize = 14.sp, color = Gold, fontWeight = FontWeight.Normal),
@@ -941,8 +984,6 @@ private fun NavHubBottomSheet(
     onNavigateToGuestbook: () -> Unit,
     onNavigateToGuests: () -> Unit,
     onNavigateToChat: () -> Unit,
-    onNavigateToWeddingInfo: () -> Unit,
-    onNavigateToTimeline: () -> Unit,
     isPrivileged: Boolean,
     onNavigateToShareInvitation: () -> Unit,
 ) {
@@ -993,18 +1034,8 @@ private fun NavHubBottomSheet(
                 Icons.Default.Forum,
                 "Chat",
                 "Talk to everyone",
-                onClick = { onDismiss(); onNavigateToChat() })
-            NavHubItem(
-                Icons.Default.Info,
-                "Wedding Info",
-                "Venue & schedule details",
-                onClick = { onDismiss(); onNavigateToWeddingInfo() })
-            NavHubItem(
-                Icons.Default.Schedule,
-                "Day Timeline",
-                "Follow the event schedule",
                 showDivider = isPrivileged,
-                onClick = { onDismiss(); onNavigateToTimeline() })
+                onClick = { onDismiss(); onNavigateToChat() })
             if (isPrivileged) {
                 NavHubItem(
                     Icons.Default.Share,

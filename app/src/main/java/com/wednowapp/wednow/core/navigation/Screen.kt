@@ -25,6 +25,13 @@ sealed class Screen(val route: String) {
         fun createRoute(weddingId: String) = "guest_list/$weddingId"
     }
 
+    object GuestManagement : Screen("guest_management/{weddingId}/{fromOnboarding}") {
+        const val ARG = "weddingId"
+        const val FROM_ONBOARDING = "fromOnboarding"
+        fun createRoute(weddingId: String, fromOnboarding: Boolean = false) =
+            "guest_management/$weddingId/$fromOnboarding"
+    }
+
     object RSVP : Screen("rsvp/{weddingId}") {
         const val ARG = "weddingId"
         fun createRoute(weddingId: String) = "rsvp/$weddingId"
