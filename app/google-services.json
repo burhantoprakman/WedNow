@@ -12,7 +12,20 @@
           "package_name": "com.wednowapp.wednow"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "385203742580-gb6msv1k1h7jug6vuhi6c6634rvt37lj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wednowapp.wednow",
+            "certificate_hash": "0b2c986afdc2afece1526ebd938cdab2e85dba0c"
+          }
+        },
+        {
+          "client_id": "385203742580-s74s2r5rhu5ipeq7ebc2ggblo0orcb05.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDNFPt6QYe6dt-UM2Ls9ttRL6W5W1682ik"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "385203742580-s74s2r5rhu5ipeq7ebc2ggblo0orcb05.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

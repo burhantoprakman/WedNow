@@ -8,4 +8,13 @@ interface GuestGroupRepository {
     suspend fun addGuestGroup(group: GuestGroup): Result<Unit>
     suspend fun updateGuestGroup(group: GuestGroup): Result<Unit>
     suspend fun deleteGuestGroup(weddingId: String, groupId: String): Result<Unit>
+
+    /** Resolve a per-group inviteToken to the [GuestGroup] that owns it. */
+    suspend fun findGroupByInviteToken(token: String): Result<GuestGroup?>
+
+    /**
+     * Write missing inviteTokens reverse-lookup entries for all [groups].
+     * Call once when the admin opens Guest Management so old groups become joinable.
+     */
+    suspend fun backfillInviteTokens(groups: List<GuestGroup>)
 }

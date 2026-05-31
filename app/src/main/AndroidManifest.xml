@@ -22,7 +22,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop"
-            android:theme="@style/Theme.WedNow">
+            android:theme="@style/Theme.WedNow.Splash">
 
             <!-- Launcher -->
             <intent-filter>

@@ -33,12 +33,29 @@ class GuestbookFirestoreService @Inject constructor(
         postsRef(weddingId).document(post.id).set(post.toMap()).await()
     }
 
+    suspend fun deletePost(weddingId: String, postId: String): Result<Unit> = runCatching {
+        postsRef(weddingId).document(postId).delete().await()
+    }
+
+    suspend fun updatePost(weddingId: String, post: GuestbookPost): Result<Unit> = runCatching {
+        postsRef(weddingId).document(post.id).update(
+            mapOf(
+                "message" to post.message,
+                "photoUrls" to post.photoUrls,
+                "updatedAt" to post.updatedAt,
+            )
+        ).await()
+    }
+
     private fun GuestbookPost.toMap(): Map<String, Any?> = mapOf(
         "guestId" to guestId,
         "senderName" to senderName,
         "message" to message,
         "photoUrls" to photoUrls,
         "timestamp" to timestamp,
+        "ownerUserId" to ownerUserId,
+        "updatedAt" to updatedAt,
+        "ownerIdentityId" to ownerIdentityId,
     )
 
     private fun DocumentSnapshot.toPost(): GuestbookPost? {
@@ -52,6 +69,12 @@ class GuestbookFirestoreService @Inject constructor(
                 photoUrls = (get("photoUrls") as? List<*>)
                     ?.filterIsInstance<String>() ?: emptyList(),
                 timestamp = getLong("timestamp") ?: 0L,
+                ownerUserId = getString("ownerUserId") ?: "",
+                updatedAt = getLong("updatedAt") ?: 0L,
+                // ownerIdentityId: prefer new field, fall back to guestId for legacy posts
+                ownerIdentityId = getString("ownerIdentityId")
+                    ?.ifBlank { getString("guestId") ?: "" }
+                    ?: getString("guestId") ?: "",
             )
         }.getOrNull()
     }

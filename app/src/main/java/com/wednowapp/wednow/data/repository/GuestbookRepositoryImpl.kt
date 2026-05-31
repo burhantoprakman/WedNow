@@ -26,4 +26,19 @@ class GuestbookRepositoryImpl @Inject constructor(
         postId: String,
         uris: List<Uri>,
     ): Result<List<String>> = storageService.uploadPhotos(weddingId, postId, uris)
+
+    override suspend fun uploadEditPhotos(
+        weddingId: String,
+        postId: String,
+        uris: List<Uri>,
+    ): Result<List<String>> = storageService.uploadEditPhotos(weddingId, postId, uris)
+
+    override suspend fun deletePhoto(url: String): Result<Unit> =
+        storageService.deletePhoto(url)
+
+    override suspend fun deletePost(weddingId: String, postId: String) =
+        firestoreService.deletePost(weddingId, postId)
+
+    override suspend fun updatePost(weddingId: String, post: GuestbookPost) =
+        firestoreService.updatePost(weddingId, post)
 }

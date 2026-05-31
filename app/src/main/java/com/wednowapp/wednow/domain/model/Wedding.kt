@@ -2,6 +2,7 @@ package com.wednowapp.wednow.domain.model
 
 data class Wedding(
     val id: String = "",
+    val shortCode: String = "",          // 6-character join code shown on invitations
     val name: String = "",
     val date: String = "",
     val location: String = "",

@@ -112,7 +112,8 @@ fun ShareInvitationScreen(
                 is ShareInvitationState.Error ->
                     WedNowErrorScreen(message = s.message, onRetry = {})
 
-                is ShareInvitationState.Success ->
+                is ShareInvitationState.Success -> {
+                    val code = s.wedding.shortCode.ifBlank { viewModel.weddingId }
                     ShareInvitationContent(
                         wedding = s.wedding,
                         weddingId = viewModel.weddingId,
@@ -120,8 +121,9 @@ fun ShareInvitationScreen(
                         onEnterWedding = onEnterWedding,
                         onBack = onBack,
                         snackbarHost = snackbarHost,
-                        deepLinkUrl = "https://wednow.app/join/${viewModel.weddingId}",
+                        deepLinkUrl = "https://wednow.app/join/$code",
                     )
+                }
             }
         }
     }
@@ -284,16 +286,47 @@ private fun ShareInvitationContent(
                 Spacer(Modifier.height(Spacing.lg))
             }
 
-            // ── Enter wedding
+            // ── Enter wedding ─────────────────────────────────────────────────
             Column(
                 modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
+                // Primary CTA — always visible
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
+                        .clickable(onClick = onEnterWedding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.White.copy(alpha = 0.85f),
+                        )
+                        Text(
+                            text = "Enter Your Wedding",
+                            style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.5.sp),
+                            color = Color.White,
+                        )
+                    }
+                }
+
                 Text(
-                    "Code: $weddingId",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
-                    color = Color.White.copy(alpha = 0.7f),
+                    "Code: ${wedding.shortCode.ifBlank { weddingId }}",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 2.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = Color.White.copy(alpha = 0.65f),
                 )
             }
 
@@ -479,12 +512,12 @@ private fun RealInvitationCard(
 
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Code:$weddingId",
+                    text = "Code: ${wedding.shortCode.ifBlank { "—" }}",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.sp,
+                        letterSpacing = 2.sp,
                         fontWeight = FontWeight.Medium,
                     ),
-                    color = WarmGray400,
+                    color = Gold.copy(alpha = 0.75f),
                 )
 
                 Spacer(Modifier.height(24.dp))

@@ -35,17 +35,24 @@ class JoinWeddingViewModel @Inject constructor(
     private val _state = MutableStateFlow<JoinWeddingState>(JoinWeddingState.Idle)
     val state: StateFlow<JoinWeddingState> = _state.asStateFlow()
 
+    // Submit is enabled when the code is exactly 6 chars (OTP fully filled)
+    // or non-blank for QR deep-link pre-fills that may carry a full weddingId
     val isSubmitEnabled: Boolean
-        get() = weddingCode.isNotBlank()
+        get() = weddingCode.length == 6 || (weddingCode.length > 6 && weddingCode.isNotBlank())
 
-    fun onWeddingCodeChange(value: String) { weddingCode = value }
+    fun onWeddingCodeChange(value: String) {
+        weddingCode = value.filter { it.isLetterOrDigit() }.uppercase().take(6)
+    }
     fun onGuestNameChange(value: String) { guestName = value }
+    fun resetState() {
+        _state.value = JoinWeddingState.Idle
+    }
 
     fun submit() {
         viewModelScope.launch {
             _state.value = JoinWeddingState.Loading
             joinWeddingUseCase(
-                weddingId = weddingCode.trim(),
+                weddingCode = weddingCode.trim(),
                 guestName = guestName.trim().takeIf { it.isNotBlank() }
             ).onSuccess { weddingId ->
                 _state.value = JoinWeddingState.Success(weddingId)

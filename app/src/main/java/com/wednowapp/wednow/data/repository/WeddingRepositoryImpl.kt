@@ -18,6 +18,9 @@ class WeddingRepositoryImpl @Inject constructor(
     override suspend fun getWeddingById(weddingId: String): Result<Wedding?> =
         firestoreService.getWeddingById(weddingId)
 
+    override suspend fun getWeddingByShortCode(shortCode: String): Result<Wedding?> =
+        firestoreService.getWeddingByShortCode(shortCode)
+
     override suspend fun createWedding(wedding: Wedding): Result<String> =
         firestoreService.createWedding(wedding)
 }

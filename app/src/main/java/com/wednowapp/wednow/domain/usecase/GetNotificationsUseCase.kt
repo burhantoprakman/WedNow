@@ -6,8 +6,15 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 class GetNotificationsUseCase @Inject constructor(
-    private val repository: NotificationRepository
+    private val repository: NotificationRepository,
 ) {
-    operator fun invoke(weddingId: String): Flow<List<AppNotification>> =
-        repository.observeNotifications(weddingId)
+    /**
+     * Returns a real-time stream of notifications relevant to [recipientId]:
+     * broadcast notifications (recipientId = "") plus personal ones.
+     */
+    operator fun invoke(
+        weddingId: String,
+        recipientId: String,
+    ): Flow<List<AppNotification>> =
+        repository.observeNotifications(weddingId, recipientId)
 }

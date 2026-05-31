@@ -224,7 +224,6 @@ private fun WeddingInfoContent(
                     )
                 )
         )
-        WeddingInfoFlorals()
 
         LazyColumn(
             modifier = Modifier
@@ -278,16 +277,6 @@ private fun WeddingInfoContent(
                         ) { ScheduleSection(wedding.timeline) }
                     }
                 }
-            }
-
-            item { Spacer(Modifier.height(Spacing.md)) }
-
-            item {
-                WeddingCodeCard(
-                    wedding    = wedding,
-                    onCopyCode = onCopyCode,
-                    modifier   = Modifier.padding(horizontal = Spacing.screenHorizontal),
-                )
             }
         }
 
@@ -1690,12 +1679,6 @@ private fun DateSection(wedding: Wedding, context: Context) {
                 wedding.date.ifBlank { "Date TBA" },
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = WarmGray800
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "Ceremony · 14:00 – 22:00  ·  Add to calendar",
-                style = MaterialTheme.typography.bodySmall,
-                color = Gold.copy(alpha = 0.75f)
             )
         }
         Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(16.dp), WarmGray200)

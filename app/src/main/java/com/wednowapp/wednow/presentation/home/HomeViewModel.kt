@@ -3,16 +3,20 @@ package com.wednowapp.wednow.presentation.home
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wednowapp.wednow.core.identity.IdentityManager
 import com.wednowapp.wednow.core.navigation.Screen
 import com.wednowapp.wednow.domain.model.GuestRole
 import com.wednowapp.wednow.domain.model.Wedding
+import com.wednowapp.wednow.domain.repository.NotificationRepository
 import com.wednowapp.wednow.domain.usecase.GetCurrentGuestUseCase
 import com.wednowapp.wednow.domain.usecase.GetWeddingByIdUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,12 +25,21 @@ class HomeViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getWeddingByIdUseCase: GetWeddingByIdUseCase,
     private val getCurrentGuestUseCase: GetCurrentGuestUseCase,
+    private val notificationRepository: NotificationRepository,
+    private val identityManager: IdentityManager,
 ) : ViewModel() {
 
     val weddingId: String = checkNotNull(savedStateHandle[Screen.WeddingHome.ARG])
 
     private val _state = MutableStateFlow<WeddingDetailState>(WeddingDetailState.Loading)
     val state: StateFlow<WeddingDetailState> = _state.asStateFlow()
+
+    /** Live unread notification count — drives the badge in the nav hub. */
+    val unreadNotificationCount: StateFlow<Int> =
+        notificationRepository.observeUnreadCount(
+            weddingId = weddingId,
+            recipientId = identityManager.currentIdentityId,
+        ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = 0)
 
     init {
         loadWedding()

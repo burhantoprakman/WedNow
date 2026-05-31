@@ -19,6 +19,9 @@ class FirestoreService @Inject constructor(
 ) {
     private val weddingsCollection = firestore.collection("weddings")
 
+    // shortCodes/{CODE} → { weddingId: "..." }  — enables direct-doc lookup, no query needed
+    private val shortCodesCollection = firestore.collection("shortCodes")
+
     fun getWeddings(): Flow<List<Wedding>> = callbackFlow {
         val listener = weddingsCollection.addSnapshotListener { snapshot, error ->
             if (error != null) {
@@ -36,6 +39,53 @@ class FirestoreService @Inject constructor(
     suspend fun getWeddingById(weddingId: String): Result<Wedding?> = runCatching {
         val doc = weddingsCollection.document(weddingId).get().await()
         documentToWedding(doc)
+    }
+
+    /**
+     * Resolves a 6-character short code to the full wedding document.
+     *
+     * Strategy:
+     *  1. Fast path  — read shortCodes/{CODE} (a single doc get, always O(1)).
+     *  2. Fallback   — query weddings where shortCode == CODE.
+     *                  Handles weddings created before the shortCodes collection
+     *                  existed (i.e. legacy data without a reverse-lookup entry).
+     *  3. Backfill   — after a successful fallback, write the missing shortCodes
+     *                  entry so the next lookup hits the fast path.
+     */
+    suspend fun getWeddingByShortCode(shortCode: String): Result<Wedding?> = runCatching {
+        val code = shortCode.uppercase()
+
+        // ── Fast path: reverse-lookup doc ─────────────────────────────────────
+        val codeDoc = shortCodesCollection.document(code).get().await()
+        if (codeDoc.exists()) {
+            val weddingId = codeDoc.getString("weddingId") ?: return@runCatching null
+            val weddingDoc = weddingsCollection.document(weddingId).get().await()
+            return@runCatching documentToWedding(weddingDoc)
+        }
+
+        // ── Fallback: query weddings collection by shortCode field ─────────────
+        // Works because rules have `allow read: if true` on /weddings/{weddingId}
+        // which grants both `get` (document) and `list` (query) permissions.
+        val querySnap = weddingsCollection
+            .whereEqualTo("shortCode", code)
+            .limit(1)
+            .get()
+            .await()
+
+        val weddingDoc = querySnap.documents.firstOrNull() ?: return@runCatching null
+        val wedding = documentToWedding(weddingDoc) ?: return@runCatching null
+
+        // ── Backfill: write the missing shortCodes entry ──────────────────────
+        if (wedding.shortCode.isNotBlank()) {
+            runCatching {
+                shortCodesCollection
+                    .document(wedding.shortCode)
+                    .set(mapOf("weddingId" to wedding.id))
+                    .await()
+            } // best-effort — don't fail the join if backfill write is denied
+        }
+
+        wedding
     }
 
     suspend fun createWedding(wedding: Wedding): Result<String> = runCatching {
@@ -59,6 +109,7 @@ class FirestoreService @Inject constructor(
             )
         }
         val data = hashMapOf(
+            "shortCode" to wedding.shortCode,
             "name" to wedding.name,
             "date" to wedding.date,
             "location" to wedding.location,
@@ -69,7 +120,15 @@ class FirestoreService @Inject constructor(
             "dressCode" to dressCodeData,
             "timeline" to timelineData,
         )
-        weddingsCollection.add(data).await().id
+        val weddingId = weddingsCollection.add(data).await().id
+        // Write the reverse-lookup entry so guests can join by short code
+        if (wedding.shortCode.isNotBlank()) {
+            shortCodesCollection
+                .document(wedding.shortCode)
+                .set(mapOf("weddingId" to weddingId))
+                .await()
+        }
+        weddingId
     }
 
     suspend fun updateWedding(wedding: Wedding): Result<Unit> = runCatching {
@@ -141,6 +200,7 @@ class FirestoreService @Inject constructor(
 
         return Wedding(
             id = doc.id,
+            shortCode = doc.getString("shortCode") ?: "",
             name = doc.getString("name") ?: "",
             date = doc.getString("date") ?: "",
             location = doc.getString("location") ?: "",

@@ -39,18 +39,28 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Preview
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -89,10 +99,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.wednowapp.wednow.R
 import com.wednowapp.wednow.domain.model.GuestbookPost
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.wednowapp.wednow.ui.theme.BlushDeep
 import com.wednowapp.wednow.ui.theme.Champagne
 import com.wednowapp.wednow.ui.theme.ChampagneLight
+import com.wednowapp.wednow.ui.theme.ErrorRose
 import com.wednowapp.wednow.ui.theme.Gold
+import com.wednowapp.wednow.ui.theme.GoldDeep
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
 import com.wednowapp.wednow.ui.theme.WarmGray100
@@ -131,9 +145,11 @@ fun GuestbookScreen(
     onBack: () -> Unit,
     viewModel: GuestbookViewModel = hiltViewModel(),
 ) {
-    val posts       by viewModel.posts.collectAsStateWithLifecycle()
+    val authViewModel = LocalAuthViewModel.current
+    val posts by viewModel.posts.collectAsStateWithLifecycle()
     val submitState by viewModel.submitState.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
+    var showSignIn by remember { mutableStateOf(false) }
 
     GuestbookContent(
         posts = posts,
@@ -149,7 +165,50 @@ fun GuestbookScreen(
         onResetSubmit = viewModel::resetSubmitState,
         onBack = onBack,
         snackbarHost = snackbarHost,
+        onRequestWrite = {
+            if (authViewModel.isSignedIn) Unit
+            else showSignIn = true
+        },
+        isSignedIn = authViewModel.isSignedIn,
+        canEdit = viewModel::canEdit,
+        canDelete = viewModel::canDelete,
+        isOwned = viewModel::isOwned,
+        onEdit = viewModel::openEdit,
+        onDelete = viewModel::requestDelete,
     )
+
+    // Delete confirmation
+    viewModel.pendingDeletePost?.let {
+        DeletePostDialog(
+            onConfirm = viewModel::confirmDelete,
+            onDismiss = viewModel::cancelDelete,
+        )
+    }
+
+    // Edit sheet
+    viewModel.editingPost?.let {
+        EditPostSheet(
+            initialMessage = viewModel.editMessageInput,
+            existingPhotoUrls = viewModel.editExistingPhotoUrls,
+            newPhotoUris = viewModel.editNewPhotoUris,
+            onSave = viewModel::saveEdit,
+            onMessageChange = viewModel::onEditMessageChange,
+            onRemoveExistingPhoto = viewModel::removeExistingEditPhoto,
+            onAddPhotos = viewModel::addEditPhotos,
+            onRemoveNewPhoto = viewModel::removeNewEditPhoto,
+            isSubmitting = viewModel.editSaving,
+            onDismiss = viewModel::dismissEdit,
+        )
+    }
+
+    if (showSignIn) {
+        SignInBottomSheet(
+            authViewModel = authViewModel,
+            reason = "Sign in to leave a message in the guestbook.",
+            onDismiss = { showSignIn = false; authViewModel.clearError() },
+            onSuccess = { showSignIn = false },
+        )
+    }
 }
 
 // ── Content ───────────────────────────────────────────────────────────────────
@@ -170,6 +229,13 @@ private fun GuestbookContent(
     onResetSubmit: () -> Unit,
     onBack: () -> Unit,
     snackbarHost: SnackbarHostState,
+    onRequestWrite: () -> Unit = {},     // called when unauthenticated user taps write
+    isSignedIn: Boolean = true,
+    canEdit: (GuestbookPost) -> Boolean = { false },
+    canDelete: (GuestbookPost) -> Boolean = { false },
+    isOwned: (GuestbookPost) -> Boolean = { false },
+    onEdit: (GuestbookPost) -> Unit = {},
+    onDelete: (GuestbookPost) -> Unit = {},
 ) {
     var showWriteSheet by remember { mutableStateOf(false) }
     val postList = posts ?: emptyList()
@@ -212,7 +278,10 @@ private fun GuestbookContent(
         ) {
             GuestbookTopBar(
                 onBack = onBack,
-                onWrite = { showWriteSheet = true },
+                onWrite = {
+                    if (isSignedIn) showWriteSheet = true
+                    else onRequestWrite()
+                },
                 currentPage = pagerState.currentPage,
                 totalMemories = postList.size,
             )
@@ -231,12 +300,18 @@ private fun GuestbookContent(
                         modifier   = Modifier.fillMaxSize(),
                     )
                 } else {
+                    val post = postList[page - 1]
                     GuestbookPage(
-                        post = postList[page - 1],
+                        post = post,
                         pageIndex  = page,
                         totalPages = postList.size,
                         pageOffset = pageOffset,
                         modifier   = Modifier.fillMaxSize(),
+                        canEdit = canEdit(post),
+                        canDelete = canDelete(post),
+                        isOwned = isOwned(post),
+                        onEdit = { onEdit(post) },
+                        onDelete = { onDelete(post) },
                     )
                 }
             }
@@ -513,6 +588,11 @@ fun GuestbookPage(
     totalPages: Int,
     pageOffset: Float,
     modifier: Modifier = Modifier,
+    canEdit: Boolean = false,
+    canDelete: Boolean = false,
+    isOwned: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
 ) {
     Box(
         modifier = modifier.graphicsLayer {
@@ -537,6 +617,11 @@ fun GuestbookPage(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
+            canEdit = canEdit,
+            canDelete = canDelete,
+            isOwned = isOwned,
+            onEdit = onEdit,
+            onDelete = onDelete,
         )
     }
 }
@@ -550,6 +635,11 @@ fun MemoryEntryCard(
     totalPages: Int,
     modifier: Modifier = Modifier,
     previewPhotoUris: List<Uri> = emptyList(),   // overrides post.photoUrls for preview
+    canEdit: Boolean = false,
+    canDelete: Boolean = false,
+    isOwned: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
 ) {
     val serifFamily = MaterialTheme.typography.displayLarge.fontFamily
     // Use URI overrides for preview mode, otherwise use stored URLs
@@ -584,21 +674,113 @@ fun MemoryEntryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text  = "Memory",
-                    style = TextStyle(
-                        fontFamily = serifFamily,
-                        fontStyle = FontStyle.Italic,
-                        fontSize = 12.sp,
-                        color = WarmGray400,
-                        letterSpacing = 0.5.sp,
-                    ),
-                )
-                Text(
-                    text  = "$pageIndex  /  $totalPages",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                    color = WarmGray300,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "Memory",
+                        style = TextStyle(
+                            fontFamily = serifFamily,
+                            fontStyle = FontStyle.Italic,
+                            fontSize = 12.sp,
+                            color = WarmGray400,
+                            letterSpacing = 0.5.sp,
+                        ),
+                    )
+                    // "Your Message" badge
+                    if (isOwned) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Gold.copy(alpha = 0.85f))
+                                .padding(horizontal = 7.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                "Your Message",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                                color = Color.White,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "$pageIndex  /  $totalPages",
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                        color = WarmGray300,
+                    )
+                    // ⋮ menu for edit/delete
+                    if (canEdit || canDelete) {
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(WarmGray100)
+                                    .clickable { menuExpanded = true },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    null,
+                                    Modifier.size(13.dp),
+                                    WarmGray600,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                                modifier = Modifier.background(Color.White),
+                            ) {
+                                if (canEdit) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Edit Message",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = WarmGray800
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Edit,
+                                                null,
+                                                Modifier.size(16.dp),
+                                                GoldDeep
+                                            )
+                                        },
+                                        onClick = { menuExpanded = false; onEdit() },
+                                    )
+                                }
+                                if (canDelete) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Delete",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = ErrorRose
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                null,
+                                                Modifier.size(16.dp),
+                                                ErrorRose
+                                            )
+                                        },
+                                        onClick = { menuExpanded = false; onDelete() },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(Spacing.sm))
@@ -1479,6 +1661,265 @@ private fun BookroomFlorals() {
         )
         drawCircle(Color(0xFFF5E6C8).copy(alpha = 0.40f), 65.dp.toPx(),  Offset(bx - 70.dp.toPx(), by - 90.dp.toPx()))
         drawCircle(Color(0xFFEAB8BC).copy(alpha = 0.15f), 55.dp.toPx(),  Offset(bx + 10.dp.toPx(), by - 130.dp.toPx()))
+    }
+}
+
+// ── Delete post dialog ────────────────────────────────────────────────────────
+
+@Composable
+private fun DeletePostDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                "Delete message?",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray800,
+            )
+        },
+        text = {
+            Text(
+                "This memory will be permanently removed.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = WarmGray400,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete", color = ErrorRose, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = WarmGray400)
+            }
+        },
+    )
+}
+
+// ── Edit post sheet ───────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditPostSheet(
+    initialMessage: String,
+    existingPhotoUrls: List<String>,
+    newPhotoUris: List<Uri>,
+    onSave: () -> Unit,
+    onMessageChange: (String) -> Unit,
+    onRemoveExistingPhoto: (String) -> Unit,
+    onAddPhotos: (List<Uri>) -> Unit,
+    onRemoveNewPhoto: (Uri) -> Unit,
+    isSubmitting: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Ivory,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.md),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(40.dp)
+                        .height(3.dp)
+                        .clip(CircleShape)
+                        .background(WarmGray200),
+                )
+            }
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.screenHorizontal)
+                .padding(bottom = Spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(Spacing.sm))
+            Text(
+                text = "Edit Memory",
+                style = TextStyle(
+                    fontFamily = DancingScript,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 30.sp,
+                    color = WarmGray800,
+                ),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(Spacing.lg))
+            GoldDivider(Modifier.fillMaxWidth())
+            Spacer(Modifier.height(Spacing.lg))
+
+            // ── Photo row (existing URLs + new URIs) ──────────────────────────
+            EditPhotoRow(
+                existingUrls = existingPhotoUrls,
+                newUris = newPhotoUris,
+                onRemoveExisting = onRemoveExistingPhoto,
+                onAddPhotos = onAddPhotos,
+                onRemoveNew = onRemoveNewPhoto,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Add up to 3 photos  (optional)",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
+                color = WarmGray300,
+            )
+
+            Spacer(Modifier.height(Spacing.lg))
+
+            // ── Message field ─────────────────────────────────────────────────
+            OutlinedTextField(
+                value = initialMessage,
+                onValueChange = onMessageChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 120.dp),
+                placeholder = { Text("Your message…", color = WarmGray300) },
+                shape = RoundedCornerShape(14.dp),
+                enabled = !isSubmitting,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = WarmGray200,
+                    cursorColor = Gold,
+                ),
+            )
+
+            Spacer(Modifier.height(Spacing.lg))
+
+            // ── Save / loading ────────────────────────────────────────────────
+            if (isSubmitting) {
+                CircularProgressIndicator(
+                    color = Gold,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(44.dp),
+                )
+            } else {
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Gold,
+                        contentColor = Color.White
+                    ),
+                ) {
+                    Text("Save Changes", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+// ── Edit photo row (existing URLs + new URIs) ─────────────────────────────────
+
+@Composable
+private fun EditPhotoRow(
+    existingUrls: List<String>,
+    newUris: List<Uri>,
+    onRemoveExisting: (String) -> Unit,
+    onAddPhotos: (List<Uri>) -> Unit,
+    onRemoveNew: (Uri) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val totalCount = existingUrls.size + newUris.size
+    val remaining = 3 - totalCount
+
+    val multiLauncher = rememberLauncherForActivityResult(
+        PickMultipleVisualMedia(maxItems = if (remaining >= 2) remaining else 2)
+    ) { picked -> if (picked.isNotEmpty()) onAddPhotos(picked) }
+
+    val singleLauncher = rememberLauncherForActivityResult(
+        PickVisualMedia()
+    ) { uri -> uri?.let { onAddPhotos(listOf(it)) } }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        repeat(3) { index ->
+            when {
+                // Slot occupied by an existing (URL) photo
+                index < existingUrls.size -> FilledUrlPhotoSlot(
+                    url = existingUrls[index],
+                    onRemove = { onRemoveExisting(existingUrls[index]) },
+                    modifier = Modifier.weight(1f),
+                )
+                // Slot occupied by a newly added (URI) photo
+                index < totalCount -> {
+                    val uriIndex = index - existingUrls.size
+                    FilledPhotoSlot(
+                        uri = newUris[uriIndex],
+                        onRemove = { onRemoveNew(newUris[uriIndex]) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // Next empty slot → "Add photo" button
+                index == totalCount && totalCount < 3 -> AddPhotoSlot(
+                    onClick = {
+                        val req = PickVisualMediaRequest(PickVisualMedia.ImageOnly)
+                        if (remaining >= 2) multiLauncher.launch(req) else singleLauncher.launch(req)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                // Remaining empty slots → ghost placeholders
+                else -> GhostPhotoSlot(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+// ── Filled slot for a remote URL photo ───────────────────────────────────────
+
+@Composable
+private fun FilledUrlPhotoSlot(
+    url: String,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .shadow(4.dp, RoundedCornerShape(12.dp)),
+    ) {
+        AsyncImage(
+            model = url,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(5.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f))
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove photo",
+                tint = Color.White,
+                modifier = Modifier.size(12.dp),
+            )
+        }
     }
 }
 

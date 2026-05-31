@@ -44,6 +44,12 @@ class GuestFirestoreService @Inject constructor(
         guestsRef(weddingId).document(guest.id).set(guest.toMap()).await()
     }
 
+    /** Partial update — only touches the role field, leaving all other fields intact. */
+    suspend fun updateGuestRole(weddingId: String, guestId: String, role: String): Result<Unit> =
+        runCatching {
+            guestsRef(weddingId).document(guestId).update("role", role).await()
+        }
+
     // Partial update — only touches rsvpStatus and rsvpUpdatedAt, leaving all other fields intact.
     suspend fun updateRsvp(weddingId: String, guestId: String, status: String): Result<Unit> = runCatching {
         guestsRef(weddingId).document(guestId).update(

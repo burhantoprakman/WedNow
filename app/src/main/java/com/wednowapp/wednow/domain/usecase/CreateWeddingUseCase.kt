@@ -7,6 +7,11 @@ import com.wednowapp.wednow.domain.repository.GuestRepository
 import com.wednowapp.wednow.domain.repository.WeddingRepository
 import javax.inject.Inject
 
+private val SHORT_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // no confusable 0/1/I/O
+
+private fun generateShortCode(): String =
+    (1..6).map { SHORT_CODE_CHARS.random() }.joinToString("")
+
 class CreateWeddingUseCase @Inject constructor(
     private val weddingRepository: WeddingRepository,
     private val guestRepository: GuestRepository,
@@ -24,6 +29,7 @@ class CreateWeddingUseCase @Inject constructor(
     ): Result<String> {
         val weddingId = weddingRepository.createWedding(
             Wedding(
+                shortCode = generateShortCode(),
                 name = name,
                 date = date,
                 location = location,

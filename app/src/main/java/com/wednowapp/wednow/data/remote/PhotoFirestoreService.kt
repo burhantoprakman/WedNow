@@ -68,6 +68,15 @@ class PhotoFirestoreService @Inject constructor(
         }
     }
 
+    suspend fun deletePhoto(weddingId: String, photoId: String): Result<Unit> = runCatching {
+        photosRef(weddingId).document(photoId).delete().await()
+    }
+
+    suspend fun updateCaption(weddingId: String, photoId: String, caption: String): Result<Unit> =
+        runCatching {
+            photosRef(weddingId).document(photoId).update("caption", caption).await()
+        }
+
     // ── Serialization ─────────────────────────────────────────────────────────
 
     private fun WeddingPhoto.toMap(): Map<String, Any> = buildMap {
@@ -77,6 +86,9 @@ class PhotoFirestoreService @Inject constructor(
         put("timestamp", timestamp)
         put("likeCount", likeCount)
         put("likedBy", likedBy)
+        put("ownerUserId", ownerUserId)
+        put("caption", caption)
+        put("ownerIdentityId", ownerIdentityId)
     }
 
     private fun DocumentSnapshot.toPhoto(): WeddingPhoto? {
@@ -93,6 +105,12 @@ class PhotoFirestoreService @Inject constructor(
                 likedBy = (get("likedBy") as? List<*>)
                     ?.filterIsInstance<String>()
                     ?: emptyList(),
+                ownerUserId = getString("ownerUserId") ?: "",
+                caption = getString("caption") ?: "",
+                // ownerIdentityId: prefer new field, fall back to legacy ownerUserId
+                ownerIdentityId = getString("ownerIdentityId")
+                    ?.ifBlank { getString("ownerUserId") ?: "" }
+                    ?: getString("ownerUserId") ?: "",
             )
         }.getOrNull()
     }

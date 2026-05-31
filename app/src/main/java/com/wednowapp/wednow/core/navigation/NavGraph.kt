@@ -1,14 +1,26 @@
 package com.wednowapp.wednow.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.wednowapp.wednow.core.session.WeddingSessionManager
+import com.wednowapp.wednow.presentation.auth.AuthViewModel
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
+import com.wednowapp.wednow.presentation.identity.CreateWeddingNavViewModel
+import com.wednowapp.wednow.presentation.identity.IdentityViewModel
+import com.wednowapp.wednow.presentation.identity.LocalIdentityViewModel
 import com.wednowapp.wednow.presentation.broadcast.BroadcastScreen
 import com.wednowapp.wednow.presentation.chat.ChatScreen
 import com.wednowapp.wednow.presentation.chat.DirectMessageScreen
@@ -41,16 +53,18 @@ fun WedNowNavGraph(
 ) {
     val context = LocalContext.current
 
+    // One AuthViewModel + IdentityViewModel for the entire app lifetime.
+    val authViewModel: AuthViewModel = hiltViewModel()
+    val identityViewModel: IdentityViewModel = hiltViewModel()
+
     // Compute the start destination once. When a deep link is present we skip
     // the Splash screen and route the user directly to the right place.
     val startDestination = remember(deepLinkWeddingId) {
         if (deepLinkWeddingId != null) {
             val savedId = WeddingSessionManager.getWeddingId(context)
             if (savedId == deepLinkWeddingId) {
-                // Guest is already a member of this wedding — go straight to Home.
                 Screen.WeddingHome.createRoute(deepLinkWeddingId)
             } else {
-                // New guest — open JoinWedding with the code pre-filled.
                 Screen.JoinWedding.createDeepLinkRoute(deepLinkWeddingId)
             }
         } else {
@@ -58,6 +72,10 @@ fun WedNowNavGraph(
         }
     }
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalAuthViewModel provides authViewModel,
+        LocalIdentityViewModel provides identityViewModel,
+    ) {
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -86,6 +104,31 @@ fun WedNowNavGraph(
         }
 
         composable(Screen.CreateWedding.route) {
+            val auth = LocalAuthViewModel.current
+            val authState by auth.authState.collectAsState()
+            var showSignIn by remember { mutableStateOf(false) }
+            // Track previous sign-in state so we only react to sign-in transitions
+            var wasSignedIn by remember { mutableStateOf(auth.isSignedIn) }
+
+            // Scoped to this back-stack entry — injected use case for cross-device restore
+            val createWeddingNavVm: CreateWeddingNavViewModel =
+                androidx.hilt.navigation.compose.hiltViewModel()
+
+            // When the user signs in from this screen, navigate to their last wedding.
+            // SyncLastActiveWeddingUseCase checks local first, then Firestore (new device).
+            LaunchedEffect(authState) {
+                val isNowSignedIn = authState != null
+                if (!wasSignedIn && isNowSignedIn) {
+                    val weddingId = createWeddingNavVm.resolveLastWedding()
+                    if (weddingId != null) {
+                        navController.navigate(Screen.WeddingHome.createRoute(weddingId)) {
+                            popUpTo(Screen.CreateWedding.route) { inclusive = true }
+                        }
+                    }
+                }
+                wasSignedIn = isNowSignedIn
+            }
+
             CreateWeddingScreen(
                 onWeddingCreated = { weddingId ->
                     // After creation, show Guest Management before ShareInvitation
@@ -97,8 +140,18 @@ fun WedNowNavGraph(
                 },
                 onJoinWeddingClick = {
                     navController.navigate(Screen.JoinWedding.route)
-                }
+                },
+                onSignInClick = { showSignIn = true },
             )
+
+            if (showSignIn) {
+                SignInBottomSheet(
+                    authViewModel = auth,
+                    reason = "Sign in to access your previous wedding.",
+                    onDismiss = { showSignIn = false; auth.clearError() },
+                    onSuccess = { showSignIn = false },
+                )
+            }
         }
 
         // ── Join Wedding (manual entry — no pre-filled code) ──────────────────
@@ -141,7 +194,10 @@ fun WedNowNavGraph(
             route = Screen.Notifications.route,
             arguments = listOf(navArgument(Screen.Notifications.ARG) { type = NavType.StringType })
         ) {
-            NotificationsScreen(onBack = { navController.popBackStack() })
+            NotificationsScreen(
+                onBack = { navController.popBackStack() },
+                navController = navController,
+            )
         }
 
         // ── Broadcasts ───────────────────────────────────────────────────────
@@ -298,5 +354,6 @@ fun WedNowNavGraph(
                 onBack = { navController.popBackStack() },
             )
         }
-    }
+    } // NavHost
+    } // CompositionLocalProvider
 }

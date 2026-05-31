@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,18 +29,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,73 +43,174 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.wednowapp.wednow.R
 import com.wednowapp.wednow.domain.model.ChatMessage
 import com.wednowapp.wednow.domain.model.Guest
 import com.wednowapp.wednow.domain.model.GuestRole
+import com.wednowapp.wednow.ui.theme.Champagne
+import com.wednowapp.wednow.ui.theme.ChampagneLight
+import com.wednowapp.wednow.ui.theme.Gold
+import com.wednowapp.wednow.ui.theme.GoldDeep
+import com.wednowapp.wednow.ui.theme.GoldLight
+import com.wednowapp.wednow.ui.theme.Ivory
+import com.wednowapp.wednow.ui.theme.WarmGray100
+import com.wednowapp.wednow.ui.theme.WarmGray200
+import com.wednowapp.wednow.ui.theme.WarmGray300
+import com.wednowapp.wednow.ui.theme.WarmGray400
+import com.wednowapp.wednow.ui.theme.WarmGray50
+import com.wednowapp.wednow.ui.theme.WarmGray500
+import com.wednowapp.wednow.ui.theme.WarmGray600
+import com.wednowapp.wednow.ui.theme.WarmGray700
+import com.wednowapp.wednow.ui.theme.WarmGray800
+import com.wednowapp.wednow.ui.theme.WarmWhite
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val _gfProvider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs,
+)
+private val DancingScript = FontFamily(
+    Font(GoogleFont("Dancing Script"), _gfProvider, FontWeight.Normal),
+    Font(GoogleFont("Dancing Script"), _gfProvider, FontWeight.SemiBold),
+)
+
 private val tabs = listOf("Group Chat", "Direct Messages")
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     onBack: () -> Unit,
     onNavigateToDm: (otherGuestId: String) -> Unit,
-    viewModel: ChatViewModel = hiltViewModel()
+    viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Chat") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            PrimaryTabRow(selectedTabIndex = pagerState.currentPage) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                        text = { Text(title) }
-                    )
-                }
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Ivory),
+    ) {
+        ChatTopBar(
+            selectedTab = pagerState.currentPage,
+            onTabSelected = { scope.launch { pagerState.animateScrollToPage(it) } },
+            onBack = onBack,
+        )
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (page) {
-                    0 -> GroupChatPage(viewModel = viewModel)
-                    1 -> DmGuestListPage(
-                        viewModel = viewModel,
-                        onNavigateToDm = onNavigateToDm
-                    )
-                }
+        HorizontalDivider(color = WarmGray100, thickness = 0.8.dp)
+
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            when (page) {
+                0 -> GroupChatPage(viewModel = viewModel)
+                1 -> DmGuestListPage(viewModel = viewModel, onNavigateToDm = onNavigateToDm)
             }
         }
     }
 }
 
-// ── Group Chat page ────────────────────────────────────────────────────────────
+// ── Custom top bar ────────────────────────────────────────────────────────────
+
+@Composable
+private fun ChatTopBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Ivory)
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(WarmGray100)
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = WarmGray600,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "Chat",
+                style = TextStyle(
+                    fontFamily = DancingScript,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 28.sp,
+                    color = WarmGray800,
+                ),
+            )
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.size(38.dp)) // balance back button
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ── Pill tab switcher ─────────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(50.dp))
+                .background(WarmGray100)
+                .padding(4.dp),
+        ) {
+            tabs.forEachIndexed { i, label ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(50.dp))
+                        .background(if (selectedTab == i) Ivory else Color.Transparent)
+                        .clickable { onTabSelected(i) }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (selectedTab == i) FontWeight.SemiBold else FontWeight.Normal,
+                            fontSize = 12.sp,
+                        ),
+                        color = if (selectedTab == i) Gold else WarmGray500,
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+// ── Group Chat page ───────────────────────────────────────────────────────────
 
 @Composable
 private fun GroupChatPage(viewModel: ChatViewModel) {
@@ -128,24 +225,27 @@ private fun GroupChatPage(viewModel: ChatViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
+            .background(Ivory)
+            .imePadding(),
     ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (messages.isEmpty()) {
                 item {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(48.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "No messages yet. Say hi!",
+                            text = "No messages yet — say hi! 👋",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = WarmGray400,
                         )
                     }
                 }
@@ -160,33 +260,47 @@ private fun GroupChatPage(viewModel: ChatViewModel) {
             value = viewModel.inputText,
             onValueChange = viewModel::onInputChange,
             onSend = viewModel::sendMessage,
-            enabled = viewModel.canSend
+            enabled = viewModel.canSend,
         )
     }
 }
 
-// ── DM guest list page ─────────────────────────────────────────────────────────
+// ── DM guest list page ────────────────────────────────────────────────────────
 
 @Composable
 private fun DmGuestListPage(
     viewModel: ChatViewModel,
-    onNavigateToDm: (otherGuestId: String) -> Unit
+    onNavigateToDm: (otherGuestId: String) -> Unit,
 ) {
     val guests by viewModel.otherGuests.collectAsState()
 
     if (guests.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Ivory),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = "No other guests yet",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = WarmGray400,
             )
         }
     } else {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Ivory),
+            contentPadding = PaddingValues(vertical = 8.dp),
+        ) {
             items(guests, key = { it.id }) { guest ->
                 GuestDmRow(guest = guest, onClick = { onNavigateToDm(guest.id) })
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    color = WarmGray100,
+                    thickness = 0.6.dp,
+                )
             }
         }
     }
@@ -198,44 +312,50 @@ private fun GuestDmRow(guest: Guest, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Avatar circle with initial
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(46.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
+                .background(Brush.linearGradient(listOf(ChampagneLight, GoldLight))),
+            contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = guest.name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                style = TextStyle(
+                    fontFamily = DancingScript,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp,
+                    color = GoldDeep,
+                ),
             )
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Text(
                 text = guest.name.ifBlank { "Guest" },
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                color = WarmGray800,
             )
             Text(
                 text = roleLabel(guest.role),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = WarmGray400,
             )
         }
 
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = WarmGray300,
+            modifier = Modifier.size(18.dp),
         )
     }
 }
@@ -246,89 +366,108 @@ private fun roleLabel(role: String) = when (role) {
     else -> "Guest"
 }
 
-// ── Shared bubble + input composables ─────────────────────────────────────────
+// ── Chat bubble ───────────────────────────────────────────────────────────────
 
 @Composable
 internal fun ChatBubble(message: ChatMessage, isOwn: Boolean) {
     val bubbleShape = if (isOwn)
-        RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp)
+        RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp)
     else
-        RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-
-    val bubbleColor = if (isOwn) MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (isOwn) MaterialTheme.colorScheme.onPrimary
-    else MaterialTheme.colorScheme.onSurfaceVariant
+        RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start
+        horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start,
     ) {
         if (!isOwn && message.guestName.isNotBlank()) {
             Text(
                 text = message.guestName,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                color = GoldDeep,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
         Box(
             modifier = Modifier
                 .widthIn(max = 280.dp)
                 .clip(bubbleShape)
-                .background(bubbleColor)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .background(
+                    if (isOwn) Brush.linearGradient(listOf(Champagne, GoldLight))
+                    else Brush.linearGradient(listOf(WarmGray100, WarmGray50))
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            Text(text = message.message, style = MaterialTheme.typography.bodyMedium, color = textColor)
+            Text(
+                text = message.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isOwn) WarmGray800 else WarmGray700,
+            )
         }
         Text(
             text = formatTime(message.timestamp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = WarmGray300,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         )
     }
 }
+
+// ── Message input bar ─────────────────────────────────────────────────────────
 
 @Composable
 internal fun MessageInputBar(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
 ) {
-    Surface(shadowElevation = 8.dp) {
+    Column(modifier = Modifier.background(Ivory)) {
+        HorizontalDivider(color = WarmGray100, thickness = 0.8.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                placeholder = { Text("Type a message…") },
+                placeholder = {
+                    Text(
+                        "Write a message…",
+                        color = WarmGray300,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
                 modifier = Modifier.weight(1f),
                 maxLines = 4,
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold.copy(alpha = 0.55f),
+                    unfocusedBorderColor = WarmGray200,
+                    focusedContainerColor = WarmWhite,
+                    unfocusedContainerColor = WarmWhite,
+                    cursorColor = Gold,
+                    focusedTextColor = WarmGray800,
+                    unfocusedTextColor = WarmGray800,
+                ),
+                textStyle = MaterialTheme.typography.bodyMedium,
             )
-            Spacer(Modifier.width(8.dp))
-            IconButton(
-                onClick = onSend,
-                enabled = enabled,
+            Spacer(Modifier.width(10.dp))
+            Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
-                    .background(
-                        if (enabled) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    .background(if (enabled) Gold else WarmGray100)
+                    .clickable(enabled = enabled, onClick = onSend),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
-                    tint = if (enabled) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (enabled) Color.White else WarmGray300,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

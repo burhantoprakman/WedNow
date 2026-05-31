@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- Main app theme -->
     <style name="Theme.WedNow" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+        Splash-screen theme applied to MainActivity.
+        The background colour matches our Compose splash gradient start (#FBF7F0)
+        so the split-second system window is visually seamless.
+        installSplashScreen() in MainActivity dismisses it as soon as the first
+        Compose frame is drawn — our SplashScreen composable takes over immediately.
+        postSplashScreenTheme switches back to Theme.WedNow once the splash exits.
+    -->
+    <style name="Theme.WedNow.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#FBF7F0</item>
+        <item name="postSplashScreenTheme">@style/Theme.WedNow</item>
+    </style>
+
 </resources>

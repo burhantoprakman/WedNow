@@ -8,6 +8,7 @@ import com.wednowapp.wednow.domain.model.GuestRole
 import com.wednowapp.wednow.domain.model.Wedding
 import com.wednowapp.wednow.domain.usecase.GetCurrentGuestUseCase
 import com.wednowapp.wednow.domain.usecase.GetWeddingByIdUseCase
+import com.wednowapp.wednow.domain.usecase.SendWeddingUpdateNotificationUseCase
 import com.wednowapp.wednow.domain.usecase.UpdateWeddingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,7 @@ class WeddingInfoViewModel @Inject constructor(
     private val getWeddingByIdUseCase: GetWeddingByIdUseCase,
     private val updateWeddingUseCase: UpdateWeddingUseCase,
     private val getCurrentGuestUseCase: GetCurrentGuestUseCase,
+    private val sendWeddingUpdateNotification: SendWeddingUpdateNotificationUseCase,
 ) : ViewModel() {
 
     val weddingId: String = checkNotNull(savedStateHandle[Screen.WeddingInfo.ARG])
@@ -106,6 +108,7 @@ class WeddingInfoViewModel @Inject constructor(
     }
 
     fun saveChanges() {
+        val current = (state.value as? WeddingInfoState.Success)?.wedding
         val draft = _draft.value ?: return
         viewModelScope.launch {
             _saveState.value = SaveState.Saving
@@ -115,10 +118,37 @@ class WeddingInfoViewModel @Inject constructor(
                     _draft.value = null
                     _editMode.value = false
                     _saveState.value = SaveState.Saved
+                    // Notify all guests about the change (best-effort, fire-and-forget)
+                    sendWeddingUpdateNotification(
+                        weddingId = weddingId,
+                        changeDescription = buildChangeDescription(current, draft),
+                    )
                 }
                 .onFailure {
                     _saveState.value = SaveState.Error(it.message ?: "Failed to save")
                 }
+        }
+    }
+
+    // ── Helper: build a human-readable change summary ─────────────────────────
+
+    private fun buildChangeDescription(before: Wedding?, after: Wedding): String {
+        if (before == null) return "Wedding details have been updated."
+        val changes = buildList {
+            if (before.date != after.date) add("date")
+            if (before.location != after.location) add("venue")
+            if (before.name != after.name) add("name")
+            if (before.dressCode != after.dressCode) add("dress code")
+            if (before.timeline != after.timeline) add("event schedule")
+            if (before.menu != after.menu) add("menu")
+        }
+        return when {
+            changes.isEmpty() -> "Wedding details have been updated."
+            changes.size == 1 -> "The ${changes.first()} has been updated."
+            changes.size == 2 -> "The ${changes[0]} and ${changes[1]} have been updated."
+            else -> "Wedding ${
+                changes.dropLast(1).joinToString(", ")
+            } and ${changes.last()} have been updated."
         }
     }
 }

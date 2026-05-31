@@ -138,6 +138,7 @@ import kotlinx.coroutines.launch
 fun CreateWeddingScreen(
     onWeddingCreated: (weddingId: String) -> Unit,
     onJoinWeddingClick: () -> Unit,
+    onSignInClick: (() -> Unit)? = null,
     viewModel: CreateWeddingViewModel = hiltViewModel(),
 ) {
     val createState by viewModel.createState.collectAsStateWithLifecycle()
@@ -181,7 +182,11 @@ fun CreateWeddingScreen(
                 label = "step",
             ) { step ->
                 when (step) {
-                    0 -> WelcomeStep(onBegin = viewModel::goNext, onJoin = onJoinWeddingClick)
+                    0 -> WelcomeStep(
+                        onBegin = viewModel::goNext,
+                        onJoin = onJoinWeddingClick,
+                        onSignIn = onSignInClick,
+                    )
                     7 -> InvitationStep(
                         vm = viewModel,
                         isLoading = createState is CreateWeddingState.Loading
@@ -256,7 +261,8 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
                 3 -> VenueStep(vm)
                 4 -> MenuStep(vm)
                 5 -> DressCodeStep(vm)
-                6 -> CoverImageStep(vm)
+                6 -> TimelineStep(vm)
+                7 -> CoverImageStep(vm)
             }
         }
 
@@ -292,7 +298,11 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
 // ── Step 0 — Welcome ──────────────────────────────────────────────────────────
 
 @Composable
-private fun WelcomeStep(onBegin: () -> Unit, onJoin: () -> Unit) {
+private fun WelcomeStep(
+    onBegin: () -> Unit,
+    onJoin: () -> Unit,
+    onSignIn: (() -> Unit)? = null,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         // Soft background florals
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -385,6 +395,18 @@ private fun WelcomeStep(onBegin: () -> Unit, onJoin: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = WarmGray400,
                 )
+            }
+
+            if (onSignIn != null) {
+                TextButton(onClick = onSignIn) {
+                    Text(
+                        "Sign in",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        ),
+                        color = Gold,
+                    )
+                }
             }
 
             Spacer(Modifier.height(Spacing.xl))

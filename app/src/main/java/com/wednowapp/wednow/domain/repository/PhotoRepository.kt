@@ -13,4 +13,6 @@ interface PhotoRepository {
         guestId: String,
         isCurrentlyLiked: Boolean,
     ): Result<Unit>
+    suspend fun deletePhoto(weddingId: String, photoId: String): Result<Unit>
+    suspend fun updateCaption(weddingId: String, photoId: String, caption: String): Result<Unit>
 }

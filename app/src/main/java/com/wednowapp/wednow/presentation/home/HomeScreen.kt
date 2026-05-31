@@ -4,16 +4,24 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.CalendarContract
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,27 +42,20 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.HowToReg
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.PeopleAlt
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -62,7 +63,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,10 +73,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -94,20 +105,23 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.wednowapp.wednow.R
 import com.wednowapp.wednow.domain.model.Wedding
+import com.wednowapp.wednow.presentation.auth.AccountMenuSheet
+import com.wednowapp.wednow.presentation.auth.AuthViewModel
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
 import com.wednowapp.wednow.ui.components.WedNowErrorScreen
 import com.wednowapp.wednow.ui.components.WedNowLoadingScreen
 import com.wednowapp.wednow.ui.theme.BlushDeep
-import com.wednowapp.wednow.ui.theme.BlushLight
 import com.wednowapp.wednow.ui.theme.Champagne
 import com.wednowapp.wednow.ui.theme.ChampagneLight
 import com.wednowapp.wednow.ui.theme.Gold
 import com.wednowapp.wednow.ui.theme.GoldDeep
-import com.wednowapp.wednow.ui.theme.GoldLight
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
 import com.wednowapp.wednow.ui.theme.WarmGray500
-import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -152,6 +166,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val unreadCount by viewModel.unreadNotificationCount.collectAsState()
 
     when (state) {
         is WeddingDetailState.Loading -> WedNowLoadingScreen()
@@ -166,6 +181,7 @@ fun HomeScreen(
             HomeContent(
                 wedding = s.wedding,
                 isPrivileged = s.isPrivileged,
+                unreadNotificationCount = unreadCount,
                 onNavigateToRSVP = onNavigateToRSVP,
                 onNavigateToGuestbook = onNavigateToGuestbook,
                 onNavigateToPhotos = onNavigateToPhotos,
@@ -173,6 +189,7 @@ fun HomeScreen(
                 onNavigateToGuests = onNavigateToGuests,
                 onNavigateToChat = onNavigateToChat,
                 onNavigateToTimeline = onNavigateToTimeline,
+                onNavigateToNotifications = onNavigateToNotifications,
                 onNavigateToShareInvitation = onNavigateToShareInvitation,
             )
         }
@@ -186,6 +203,7 @@ fun HomeScreen(
 private fun HomeContent(
     wedding: Wedding,
     isPrivileged: Boolean,
+    unreadNotificationCount: Int,
     onNavigateToRSVP: () -> Unit,
     onNavigateToGuestbook: () -> Unit,
     onNavigateToPhotos: () -> Unit,
@@ -193,9 +211,14 @@ private fun HomeContent(
     onNavigateToGuests: () -> Unit,
     onNavigateToChat: () -> Unit,
     onNavigateToTimeline: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
     onNavigateToShareInvitation: () -> Unit,
 ) {
+    val authViewModel = LocalAuthViewModel.current
+    val authState by authViewModel.authState.collectAsState()
+
     var showNavHub by remember { mutableStateOf(false) }
+    var showAccountSheet by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { visible = true }
@@ -262,6 +285,57 @@ private fun HomeContent(
             item { ElegantFooter(Modifier.alpha(previewAlpha)) }
             item { Spacer(Modifier.height(Spacing.xl)) }
         }
+
+        // Account button — top-right overlay
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = Spacing.screenHorizontal, top = 6.dp)
+        ) {
+            Card(
+                onClick = { showAccountSheet = true },
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Ivory),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (authState != null) {
+                        val initial = authState!!.displayName?.firstOrNull()?.uppercaseChar() ?: '?'
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Gold.copy(alpha = 0.20f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = initial.toString(),
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = GoldDeep,
+                                ),
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Account",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAccountSheet) {
+        AccountMenuSheet(
+            authViewModel = authViewModel,
+            onDismiss = { showAccountSheet = false },
+        )
     }
 
     if (showNavHub) {
@@ -272,7 +346,9 @@ private fun HomeContent(
             onNavigateToGuestbook = onNavigateToGuestbook,
             onNavigateToGuests = onNavigateToGuests,
             onNavigateToChat = onNavigateToChat,
+            onNavigateToNotifications = onNavigateToNotifications,
             isPrivileged = isPrivileged,
+            unreadNotificationCount = unreadNotificationCount,
             onNavigateToShareInvitation = onNavigateToShareInvitation,
         )
     }
@@ -529,7 +605,7 @@ private fun CountdownSection(dateStr: String, modifier: Modifier = Modifier) {
             Text(
                 text = "It's time to celebrate! 🎉",
                 style = MaterialTheme.typography.headlineSmall,
-                color = BlushDeep,
+                color = Color(0xFF1C1C1E),
                 textAlign = TextAlign.Center,
             )
         } else {
@@ -560,15 +636,18 @@ private fun CountdownUnit(value: Long, label: String) {
             text = "%02d".format(value),
             style = TextStyle(
                 fontFamily = MaterialTheme.typography.titleLarge.fontFamily,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Light,
                 fontSize = 38.sp,
-                color = BlushDeep,
+                color = Color(0xFF1C1C1E),
             ),
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.8.sp,
+                fontSize = 8.sp
+            ),
+            color = Color(0xFFAAAAAA),
         )
     }
 }
@@ -584,7 +663,7 @@ private fun CountdownBar() {
     )
 }
 
-// ── Wedding details grid (5 tiles) ───────────────────────────────────────────
+// ── Wedding details — scrollable minimal glass chips ─────────────────────────
 
 @Composable
 private fun WeddingDetailsRow(
@@ -600,105 +679,129 @@ private fun WeddingDetailsRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         item {
-            InfoChip(
-                Icons.Default.CalendarToday,
-                BlushLight,
-                BlushDeep,
-                "Date",
-                wedding.date.ifBlank { "TBA" }) { openCalendar(context, wedding) }
-        }
-        item {
-            InfoChip(
-                Icons.Default.LocationOn,
-                ChampagneLight,
-                Gold,
-                "Venue",
-                wedding.location.ifBlank { "TBA" }) {
-                if (wedding.location.isNotBlank()) openMaps(
-                    context,
-                    wedding.location
-                )
-            }
-        }
-        item {
-            InfoChip(
-                Icons.Default.Restaurant,
-                Color(0xFFD8EED8),
-                Color(0xFF5A8A5A),
-                "Menu",
-                if (wedding.menu.isEmpty()) "TBA" else "${wedding.menu.size} Courses",
-                onNavigateToWeddingInfo
+            WeddingDetailCard(
+                icon = Icons.Default.CalendarToday,
+                label = "Date",
+                value = wedding.date.ifBlank { "TBA" },
+                gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
+                iconTint = Color(0xFFC9A84C),
+                onClick = { openCalendar(context, wedding) },
             )
         }
         item {
-            InfoChip(
-                Icons.Default.Checkroom,
-                Color(0xFFF5E8F2),
-                Color(0xFFB885A8),
-                "Dress Code",
-                wedding.dressCode.style.ifBlank { "TBA" },
-                onNavigateToWeddingInfo
+            WeddingDetailCard(
+                icon = Icons.Default.LocationOn,
+                label = "Venue",
+                value = wedding.location.ifBlank { "TBA" },
+                gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
+                iconTint = Color(0xFFC9A84C),
+                onClick = {
+                    if (wedding.location.isNotBlank()) openMaps(
+                        context,
+                        wedding.location
+                    )
+                },
             )
         }
         item {
-            InfoChip(
-                Icons.Default.Schedule,
-                GoldLight,
-                GoldDeep,
-                "Schedule",
-                if (wedding.timeline.isEmpty()) "TBA" else "${wedding.timeline.size} Events",
-                onNavigateToTimeline
+            WeddingDetailCard(
+                icon = Icons.Default.Restaurant,
+                label = "Menu",
+                value = if (wedding.menu.isEmpty()) "TBA" else "${wedding.menu.size} courses",
+                gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
+                iconTint = Color(0xFFC9A84C),
+                onClick = onNavigateToWeddingInfo,
+            )
+        }
+        item {
+            WeddingDetailCard(
+                icon = Icons.Default.Checkroom,
+                label = "Dress Code",
+                value = wedding.dressCode.style.ifBlank { "TBA" },
+                gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
+                iconTint = Color(0xFFC9A84C),
+                onClick = onNavigateToWeddingInfo,
+            )
+        }
+        item {
+            WeddingDetailCard(
+                icon = Icons.Default.Schedule,
+                label = "Schedule",
+                value = if (wedding.timeline.isEmpty()) "TBA" else "${wedding.timeline.size} events",
+                gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
+                iconTint = Color(0xFFC9A84C),
+                onClick = onNavigateToTimeline,
             )
         }
     }
 }
 
 @Composable
-private fun InfoChip(
+private fun WeddingDetailCard(
     icon: ImageVector,
-    iconBg: Color,
-    iconTint: Color,
     label: String,
     value: String,
+    gradient: Brush,
+    iconTint: Color,
     onClick: () -> Unit,
 ) {
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(50.dp),
-        colors = CardDefaults.cardColors(containerColor = Ivory),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow),
+        label = "chipScale",
+    )
+
+    Box(
+        modifier = Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .width(130.dp)
+            .height(88.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(gradient)
+            .border(
+                width = 0.8.dp,
+                brush = Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.80f), Color.White.copy(alpha = 0.10f))
+                ),
+                shape = RoundedCornerShape(18.dp),
+            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(iconBg),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, null, Modifier.size(14.dp), iconTint)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint.copy(alpha = 0.75f),
+                modifier = Modifier.size(15.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = label.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 0.5.sp,
-                        fontSize = 8.sp
+                        fontSize = 7.sp,
+                        letterSpacing = 1.4.sp,
+                        fontWeight = FontWeight.Normal,
                     ),
-                    color = WarmGray500,
+                    color = Color(0xFFAAAAAA),
                 )
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp
+                    style = TextStyle(
+                        fontFamily = MaterialTheme.typography.bodyMedium.fontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = Color(0xFF2C2C2C),
+                        letterSpacing = (-0.2).sp,
                     ),
-                    color = WarmGray800,
-                    maxLines = 1,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -781,7 +884,7 @@ private fun WeddingExperienceCard(onClick: () -> Unit, modifier: Modifier = Modi
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Enter",
                     tint = Color.White,
                     modifier = Modifier.size(18.dp),
@@ -791,7 +894,7 @@ private fun WeddingExperienceCard(onClick: () -> Unit, modifier: Modifier = Modi
     }
 }
 
-// ── Feature preview cards ─────────────────────────────────────────────────────
+// ── Feature preview section ───────────────────────────────────────────────────
 
 @Composable
 private fun FeaturePreviewSection(
@@ -807,129 +910,255 @@ private fun FeaturePreviewSection(
             .padding(horizontal = Spacing.screenHorizontal),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Row 1
+        // ── Section ornament ──────────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(0.5.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color.Transparent, Gold.copy(alpha = 0.30f))
+                        )
+                    )
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "Memories & Moments",
+                style = TextStyle(
+                    fontFamily = DancingScript,
+                    fontSize = 17.sp,
+                    color = WarmGray500,
+                ),
+            )
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(0.5.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Gold.copy(alpha = 0.30f), Color.Transparent)
+                        )
+                    )
+            )
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        // ── Row 1: Photos + Guestbook ─────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            FeaturePreviewCard(
-                icon = Icons.Default.PhotoLibrary,
-                iconBg = GoldDeep,
-                iconTint = ChampagneLight,
-                title = "Photos",
-                subtitle = "Relive beautiful moments",
+            MemoryCard(
+                title = "Photo Gallery",
+                poeticLine = "Every frame, a forever memory",
+                badgeText = "MEMORIES",
+                backgroundRes = R.drawable.homeimage,
+                accentTint = Color.Black.copy(alpha = 0.05f),
+                gradientEnd = Color.Black.copy(alpha = 0.72f),
                 onClick = onNavigateToPhotos,
                 modifier = Modifier
                     .weight(1f)
-                    .height(140.dp),
+                    .height(180.dp),
             )
-            FeaturePreviewCard(
-                icon = Icons.Default.MenuBook,
-                iconBg = ChampagneLight,
-                iconTint = GoldDeep,
+            MemoryCard(
                 title = "Guestbook",
-                subtitle = "Share your love and wishes",
+                poeticLine = "Love notes from those who matter most",
+                badgeText = "WISHES",
+                backgroundRes = R.drawable.homeimage,
+                accentTint = Color.Black.copy(alpha = 0.05f),
+                gradientEnd = Color.Black.copy(alpha = 0.72f),
                 onClick = onNavigateToGuestbook,
                 modifier = Modifier
                     .weight(1f)
-                    .height(140.dp),
+                    .height(180.dp),
             )
         }
-        // Row 2
+
+        // ── Row 2: Wedding Info + Guests ──────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            FeaturePreviewCard(
-                icon = Icons.Default.Info,
-                iconBg = BlushLight,
-                iconTint = BlushDeep,
+            MemoryCard(
                 title = "Wedding Info",
-                subtitle = "Venue, dress code & menu",
+                poeticLine = "Venue, menu & all the details",
+                badgeText = "DETAILS",
+                backgroundRes = R.drawable.homeimage,
+                accentTint = Color.Black.copy(alpha = 0.05f),
+                gradientEnd = Color.Black.copy(alpha = 0.72f),
                 onClick = onNavigateToWeddingInfo,
                 modifier = Modifier
                     .weight(1f)
-                    .height(140.dp),
+                    .height(180.dp),
             )
-            FeaturePreviewCard(
-                icon = Icons.Default.PeopleAlt,
-                iconBg = GoldLight,
-                iconTint = GoldDeep,
-                title = "Guests",
-                subtitle = "See who's celebrating",
+            MemoryCard(
+                title = "Our Guests",
+                poeticLine = "Those celebrating with us",
+                badgeText = "GUESTS",
+                backgroundRes = R.drawable.homeimage,
+                accentTint = Color.Black.copy(alpha = 0.05f),
+                gradientEnd = Color.Black.copy(alpha = 0.72f),
                 onClick = onNavigateToGuests,
                 modifier = Modifier
                     .weight(1f)
-                    .height(140.dp),
+                    .height(180.dp),
             )
         }
     }
 }
 
+// ── Memory card (Photos / Guestbook premium cards) ────────────────────────────
+
 @Composable
-private fun FeaturePreviewCard(
-    icon: ImageVector,
-    iconBg: Color,
-    iconTint: Color,
+private fun MemoryCard(
     title: String,
-    subtitle: String,
+    poeticLine: String,
+    badgeText: String,
+    backgroundRes: Int,
+    accentTint: Color,
+    gradientEnd: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Ivory),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    // ── Press scale ───────────────────────────────────────────────────────────
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.965f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "cardScale",
+    )
+
+    // ── Gold sparkle glow ─────────────────────────────────────────────────────
+    var glowTick by remember { mutableIntStateOf(0) }
+    val glowAlpha = remember { Animatable(0f) }
+    LaunchedEffect(glowTick) {
+        if (glowTick == 0) return@LaunchedEffect
+        glowAlpha.snapTo(0f)
+        glowAlpha.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
+        kotlinx.coroutines.delay(100)
+        glowAlpha.animateTo(0f, tween(500))
+    }
+
+    Box(
+        modifier = modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+            ) {
+                glowTick++
+                onClick()
+            },
     ) {
+        // ── Background photo ──────────────────────────────────────────────────
+        Image(
+            painter = painterResource(backgroundRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        // ── Per-card colour tint (gold warm / blush romantic) ─────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(accentTint)
+        )
+
+        // ── Bottom vignette for text legibility ───────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.00f to Color.Transparent,
+                        0.28f to Color.Transparent,
+                        1.00f to gradientEnd,
+                    )
+                )
+        )
+
+        // ── Text content ──────────────────────────────────────────────────────
         Column(
             modifier = Modifier
-                .fillMaxSize()                              // fills the fixed height from the modifier
-                .padding(horizontal = 16.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
         ) {
+            // Frosted glass badge chip
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(iconBg),
-                contentAlignment = Alignment.Center,
+                    .clip(RoundedCornerShape(50.dp))
+                    .background(Color.White.copy(alpha = 0.15f))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(20.dp),
+                Text(
+                    text = badgeText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 2.sp,
+                        fontSize = 8.sp,
+                    ),
+                    color = Gold,
                 )
             }
+            Spacer(Modifier.height(6.dp))
+
+            // Script title (DancingScript — luxury wedding feel)
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = TextStyle(
+                    fontFamily = DancingScript,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    fontSize = 26.sp,
+                    color = Color.White,
+                    letterSpacing = (-0.3).sp,
                 ),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.height(3.dp))
+
+            // Italic poetic subtitle
             Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.60f),
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                text = poeticLine,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontStyle = FontStyle.Italic,
+                    fontSize = 12.sp,
+                ),
+                color = Color.White.copy(alpha = 0.80f),
             )
-            // Pushes the arrow to the bottom regardless of subtitle length
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "→",
-                style = TextStyle(fontSize = 14.sp, color = Gold, fontWeight = FontWeight.Normal),
+        }
+
+        // ── Gold sparkle border — animates on tap, fades out ─────────────────
+        val ga = glowAlpha.value
+        if (ga > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = (2.5f * ga).dp,
+                        brush = Brush.linearGradient(
+                            listOf(
+                                Gold.copy(alpha = ga),
+                                Color(0xFFF0DFA0).copy(alpha = ga * 0.65f),
+                                Gold.copy(alpha = ga),
+                            )
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                    )
             )
         }
     }
 }
+
 
 // ── Elegant footer ────────────────────────────────────────────────────────────
 
@@ -955,16 +1184,16 @@ private fun ElegantFooter(modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(Spacing.md))
-        // Thin blush accent line
+        // Thin gold accent line
         Box(
             modifier = Modifier
                 .width(40.dp)
-                .height(2.dp)
+                .height(1.dp)
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            BlushDeep.copy(alpha = 0.4f),
+                            Gold.copy(alpha = 0.35f),
                             Color.Transparent
                         ),
                     )
@@ -973,136 +1202,783 @@ private fun ElegantFooter(modifier: Modifier = Modifier) {
     }
 }
 
-// ── Navigation hub bottom sheet ───────────────────────────────────────────────
+// ── Wedding Experience Hub — warm glass portal, wedding-themed canvas symbols ──
+//
+//  Style: app-native ivory/champagne/gold palette — light glassmorphism.
+//  Symbols: hand-drawn via Canvas, each echoes a wedding metaphor:
+//    RSVP         → Two interlinked wedding rings with a diamond sparkle
+//    Guests        → Six hearts rotating in a floral wreath
+//    Chat          → Champagne bubbles drifting upward
+//    Notifications → Water-ripple rings expanding from a 4-petal blossom
+//    Share         → Petal burst radiating from a gold center
+
+// Bubble data — static, used by RisingBubblesSymbol
+private data class BubbleSpec(val phase: Float, val xFrac: Float, val radius: Float)
+
+private val WeddingBubbles = listOf(
+    BubbleSpec(0.00f, 0.36f, 5.0f),
+    BubbleSpec(0.28f, 0.55f, 3.4f),
+    BubbleSpec(0.54f, 0.44f, 6.0f),
+    BubbleSpec(0.13f, 0.28f, 3.9f),
+    BubbleSpec(0.42f, 0.63f, 4.4f),
+    BubbleSpec(0.70f, 0.50f, 2.9f),
+)
+
+// ── Bottom sheet wrapper ───────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NavHubBottomSheet(
     onDismiss: () -> Unit,
     onNavigateToRSVP: () -> Unit,
-    onNavigateToPhotos: () -> Unit,
-    onNavigateToGuestbook: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateToPhotos: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateToGuestbook: () -> Unit,
     onNavigateToGuests: () -> Unit,
     onNavigateToChat: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
     isPrivileged: Boolean,
+    unreadNotificationCount: Int,
     onNavigateToShareInvitation: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Ivory,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = Color.Transparent,
+        scrimColor = Color.Black.copy(alpha = 0.42f),
+        dragHandle = null,
     ) {
+        GlassNavHubContent(
+            onDismiss = onDismiss,
+            onNavigateToRSVP = onNavigateToRSVP,
+            onNavigateToGuests = onNavigateToGuests,
+            onNavigateToChat = onNavigateToChat,
+            onNavigateToNotifications = onNavigateToNotifications,
+            isPrivileged = isPrivileged,
+            unreadNotificationCount = unreadNotificationCount,
+            onNavigateToShareInvitation = onNavigateToShareInvitation,
+        )
+    }
+}
+
+// ── Hub content ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun GlassNavHubContent(
+    onDismiss: () -> Unit,
+    onNavigateToRSVP: () -> Unit,
+    onNavigateToGuests: () -> Unit,
+    onNavigateToChat: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    isPrivileged: Boolean,
+    unreadNotificationCount: Int,
+    onNavigateToShareInvitation: () -> Unit,
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    val sheetAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(420, easing = FastOutSlowInEasing),
+        label = "sheetAlpha",
+    )
+    val sheetSlide by animateFloatAsState(
+        targetValue = if (visible) 0f else 32f,
+        animationSpec = tween(420, easing = FastOutSlowInEasing),
+        label = "sheetSlide",
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFFFEF9F4), Color(0xFFFAF2E6), Color(0xFFFCF4EE))
+                )
+            ),
+    ) {
+        // ── Ambient glow orbs ──────────────────────────────────────────────────
+        Box(
+            Modifier
+                .size(240.dp)
+                .offset(x = 148.dp, y = (-92).dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(Gold.copy(alpha = 0.11f), Color.Transparent), radius = 360f
+                    )
+                )
+        )
+        Box(
+            Modifier
+                .size(200.dp)
+                .offset(x = (-52).dp, y = 84.dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(BlushDeep.copy(alpha = 0.09f), Color.Transparent), radius = 300f
+                    )
+                )
+        )
+        Box(
+            Modifier
+                .size(170.dp)
+                .align(Alignment.BottomEnd)
+                .offset(x = 36.dp, y = 10.dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(Color(0xFFA890CC).copy(alpha = 0.07f), Color.Transparent),
+                        radius = 250f
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .graphicsLayer { alpha = sheetAlpha; translationY = sheetSlide },
         ) {
+            Spacer(Modifier.height(14.dp))
+
+            // Drag handle
+            Box(
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Gold.copy(0.20f), Gold.copy(0.54f), Gold.copy(0.20f))
+                        )
+                    )
+                    .align(Alignment.CenterHorizontally),
+            )
+
+            Spacer(Modifier.height(22.dp))
+
+            // ── Header ─────────────────────────────────────────────────────────
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = "Your Wedding",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = "Your Wedding World",
+                    style = TextStyle(
+                        fontFamily = DancingScript,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 32.sp,
+                        color = Color(0xFF3D2A18),
+                        letterSpacing = (-0.3).sp,
+                    ),
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .width(38.dp)
+                            .height(0.7.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color.Transparent, Gold.copy(alpha = 0.56f))
+                                )
+                            )
+                    )
+                    Icon(Icons.Default.Favorite, null, Modifier.size(7.dp), Gold.copy(0.62f))
+                    Box(
+                        Modifier
+                            .width(38.dp)
+                            .height(0.7.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Gold.copy(alpha = 0.56f), Color.Transparent)
+                                )
+                            )
+                    )
+                }
+                Spacer(Modifier.height(7.dp))
                 Text(
-                    text = "Choose where you'd like to go",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    text = "Everything your guests experience in one place",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp, letterSpacing = 0.3.sp,
+                    ),
+                    color = Color(0xFF8B7355).copy(alpha = 0.72f),
+                    textAlign = TextAlign.Center,
                 )
             }
-            Spacer(Modifier.height(Spacing.md))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(Modifier.height(Spacing.xs))
-            NavHubItem(
-                Icons.Default.HowToReg,
-                "RSVP",
-                "Confirm your attendance",
-                onClick = { onDismiss(); onNavigateToRSVP() })
-            NavHubItem(
-                Icons.Default.PeopleAlt,
-                "Guests",
-                "See who's celebrating",
-                onClick = { onDismiss(); onNavigateToGuests() })
-            NavHubItem(
-                Icons.Default.Forum,
-                "Chat",
-                "Talk to everyone",
-                showDivider = isPrivileged,
-                onClick = { onDismiss(); onNavigateToChat() })
-            if (isPrivileged) {
-                NavHubItem(
-                    Icons.Default.Share,
-                    "Share Invitation",
-                    "QR code · share link · save PDF",
-                    showDivider = false,
-                    onClick = { onDismiss(); onNavigateToShareInvitation() })
+
+            Spacer(Modifier.height(26.dp))
+
+            // ── Row 1: RSVP + Guests ───────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                GlassNavCard(
+                    label = "Confirm Presence",
+                    subtitle = "RSVP",
+                    glowColor = Color(0xFFE8918B),
+                    entryDelay = 120L,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(168.dp),
+                    onClick = { onDismiss(); onNavigateToRSVP() },
+                ) { WeddingRingsSymbol(Color(0xFFD08078)) }
+
+                GlassNavCard(
+                    label = "The Circle",
+                    subtitle = "Guests",
+                    glowColor = Color(0xFFD4A86A),
+                    entryDelay = 190L,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(168.dp),
+                    onClick = { onDismiss(); onNavigateToGuests() },
+                ) { FloralWreathSymbol(Color(0xFFCB9A52)) }
             }
-            Spacer(Modifier.height(Spacing.lg))
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Row 2: Chat + Notifications ────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                GlassNavCard(
+                    label = "Live Moments",
+                    subtitle = "Chat",
+                    glowColor = Color(0xFFD4B98A),
+                    entryDelay = 260L,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(168.dp),
+                    onClick = { onDismiss(); onNavigateToChat() },
+                ) { RisingBubblesSymbol(Color(0xFFD4AF6A)) }
+
+                GlassNavCard(
+                    label = "Waves of Updates",
+                    subtitle = if (unreadNotificationCount > 0)
+                        "$unreadNotificationCount new"
+                    else "Notifications",
+                    glowColor = Color(0xFFA890CC),
+                    entryDelay = 330L,
+                    badgeCount = unreadNotificationCount,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(168.dp),
+                    onClick = { onDismiss(); onNavigateToNotifications() },
+                ) { WaterRippleSymbol(Color(0xFFAA90C0)) }
+            }
+
+            // ── Admin: Spread the Joy ──────────────────────────────────────────
+            if (isPrivileged) {
+                Spacer(Modifier.height(12.dp))
+                GlassNavPill(onClick = { onDismiss(); onNavigateToShareInvitation() })
+            }
+
+            Spacer(Modifier.height(30.dp))
         }
     }
 }
 
+// ── Wedding portal card — glass tile with Canvas symbol ───────────────────────
+
 @Composable
-private fun NavHubItem(
-    icon: ImageVector,
+private fun GlassNavCard(
     label: String,
     subtitle: String,
-    showDivider: Boolean = true,
+    glowColor: Color,
+    entryDelay: Long = 0L,
+    badgeCount: Int = 0,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    symbol: @Composable () -> Unit,
 ) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.93f else 1f,
+        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow),
+        label = "cScale",
+    )
+    val pressGlow by animateFloatAsState(
+        targetValue = if (isPressed) 0.20f else 0.10f,
+        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium),
+        label = "cGlow",
+    )
+
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(entryDelay)
+        entered = true
+    }
+    val entryAlpha by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        animationSpec = tween(360, easing = FastOutSlowInEasing),
+        label = "eAlpha",
+    )
+    val entrySlide by animateFloatAsState(
+        targetValue = if (entered) 0f else 20f,
+        animationSpec = tween(360, easing = FastOutSlowInEasing),
+        label = "eSlide",
+    )
+
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale; scaleY = scale
+                alpha = entryAlpha
+                translationY = entrySlide
+            }
+            .shadow(
+                elevation = if (isPressed) 3.dp else 10.dp,
+                shape = RoundedCornerShape(22.dp),
+                ambientColor = glowColor.copy(alpha = pressGlow),
+                spotColor = glowColor.copy(alpha = pressGlow + 0.06f),
+            )
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.White.copy(alpha = 0.74f))
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        Gold.copy(alpha = 0.44f),
+                        Color.White.copy(alpha = 0.88f),
+                        glowColor.copy(alpha = 0.22f),
+                    )
+                ),
+                shape = RoundedCornerShape(22.dp),
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Canvas symbol — vertically centred in remaining space
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(BlushLight),
+                    .fillMaxWidth()
+                    .weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = BlushDeep,
-                    modifier = Modifier.size(20.dp),
-                )
+                symbol()
             }
-            Spacer(Modifier.width(Spacing.md))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+            // Label + badge row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 13.dp, end = 11.dp, bottom = 13.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = label,
+                        style = TextStyle(
+                            fontFamily = DancingScript,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 17.sp,
+                            color = Color(0xFF2E2017),
+                            letterSpacing = 0.sp,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle.uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 8.sp,
+                            letterSpacing = 1.4.sp,
+                        ),
+                        color = glowColor.copy(alpha = 0.78f),
+                    )
+                }
+                if (badgeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.90f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (badgeCount > 9) "9+" else "$badgeCount",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = Color(0xFF3D2A18),
+                        )
+                    }
+                }
             }
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(18.dp),
+        }
+
+        // Soft inner glow on press
+        if (isPressed) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .background(glowColor.copy(alpha = 0.06f)))
+        }
+    }
+}
+
+// ── Canvas wedding symbols ────────────────────────────────────────────────────
+//   All colours stay within the app's warm ivory / champagne / blush palette.
+
+// A) Wedding Rings — RSVP
+//    Two interlocked arcs (wedding bands) with a 4-point diamond sparkle above.
+@Composable
+private fun WeddingRingsSymbol(color: Color) {
+    val tr = rememberInfiniteTransition(label = "rings")
+    val rotation by tr.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Restart),
+        label = "rRot",
+    )
+    val pulse by tr.animateFloat(
+        initialValue = 0.88f, targetValue = 1.00f,
+        animationSpec = infiniteRepeatable(
+            tween(2600, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "rPulse",
+    )
+    Canvas(modifier = Modifier.size(82.dp, 66.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r = size.height * 0.28f * pulse
+        val gap = r * 0.44f
+
+        // Left band
+        drawArc(
+            color = color.copy(alpha = 0.88f),
+            startAngle = rotation + 20f, sweepAngle = 310f, useCenter = false,
+            topLeft = Offset(cx - gap - r, cy - r), size = Size(r * 2f, r * 2f),
+            style = Stroke(2.4f, cap = StrokeCap.Round),
+        )
+        // Right band (layered, slightly transparent)
+        drawArc(
+            color = color.copy(alpha = 0.55f),
+            startAngle = rotation + 200f, sweepAngle = 310f, useCenter = false,
+            topLeft = Offset(cx + gap - r, cy - r), size = Size(r * 2f, r * 2f),
+            style = Stroke(2.4f, cap = StrokeCap.Round),
+        )
+
+        // Diamond sparkle — 4-pointed star above the rings
+        val scx = cx
+        val scy = cy - r * 1.10f
+        val sr = r * 0.13f * pulse
+        for (k in 0..3) {
+            val a = (k * 90.0) * PI / 180.0
+            drawLine(
+                color = color.copy(alpha = 0.76f),
+                start = Offset(scx, scy),
+                end = Offset((scx + sr * cos(a)).toFloat(), (scy + sr * sin(a)).toFloat()),
+                strokeWidth = 1.8f,
+                cap = StrokeCap.Round,
             )
         }
-        if (showDivider) {
-            HorizontalDivider(
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        drawCircle(color.copy(alpha = 0.50f), r * 0.085f, Offset(scx, scy))
+    }
+}
+
+// B) Floral Wreath — Guests
+//    Six hearts arranged in a slowly rotating ring, with dot accents between them.
+@Composable
+private fun FloralWreathSymbol(color: Color) {
+    val tw = rememberInfiniteTransition(label = "wreath")
+    val rotation by tw.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing), RepeatMode.Restart),
+        label = "wRot",
+    )
+    val pulse by tw.animateFloat(
+        initialValue = 0.90f, targetValue = 1.00f,
+        animationSpec = infiniteRepeatable(
+            tween(3000, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "wPulse",
+    )
+    Canvas(modifier = Modifier.size(82.dp, 66.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val ringR = size.height * 0.30f * pulse
+        val hs = ringR * 0.22f   // heart half-size
+
+        for (i in 0 until 6) {
+            val angle = (i * 60.0 + rotation) * PI / 180.0
+            val hx = (cx + ringR * cos(angle)).toFloat()
+            val hy = (cy + ringR * sin(angle)).toFloat()
+            val alphaF = 0.58f + 0.32f * sin(pulse * PI * 2.0 + i * PI / 3.0).toFloat()
+
+            // Heart bezier path
+            val heart = Path().apply {
+                moveTo(hx, hy + hs * 0.36f)
+                cubicTo(hx - hs, hy - hs * 0.10f, hx - hs, hy - hs * 0.66f, hx, hy - hs * 0.23f)
+                cubicTo(hx + hs, hy - hs * 0.66f, hx + hs, hy - hs * 0.10f, hx, hy + hs * 0.36f)
+                close()
+            }
+            drawPath(heart, color.copy(alpha = alphaF))
+
+            // Small dot between hearts
+            val mid = ((i + 0.5) * 60.0 + rotation) * PI / 180.0
+            val dr = ringR * 0.82f
+            drawCircle(
+                color.copy(alpha = 0.36f), ringR * 0.055f,
+                Offset((cx + dr * cos(mid)).toFloat(), (cy + dr * sin(mid)).toFloat()),
+            )
+        }
+        // Centre blossom
+        drawCircle(color.copy(alpha = 0.70f), ringR * 0.20f, Offset(cx, cy))
+        drawCircle(Color.White.copy(alpha = 0.55f), ringR * 0.08f, Offset(cx, cy))
+    }
+}
+
+// C) Rising Champagne Bubbles — Chat
+//    Six bubbles at staggered phases drift upward with gentle lateral sway.
+@Composable
+private fun RisingBubblesSymbol(color: Color) {
+    val tb = rememberInfiniteTransition(label = "bubbles")
+    val progress by tb.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(3800, easing = LinearEasing), RepeatMode.Restart),
+        label = "bProg",
+    )
+    Canvas(modifier = Modifier.size(82.dp, 72.dp)) {
+        val w = size.width
+        val h = size.height
+        WeddingBubbles.forEach { b ->
+            val p = (progress + b.phase) % 1f
+            val y = h - p * h * 1.12f
+            val alpha = when {
+                p < 0.12f -> p / 0.12f
+                p > 0.78f -> (1f - p) / 0.22f
+                else -> 1f
+            } * 0.70f
+            val drift = (sin(p * PI * 3.0 + b.phase * 7.0) * 4.5).toFloat()
+            val x = w * b.xFrac + drift
+            if (y < -b.radius || y > h + b.radius) return@forEach
+
+            // Bubble body
+            drawCircle(color.copy(alpha = alpha), b.radius, Offset(x, y))
+            // Highlight dot
+            drawCircle(
+                Color.White.copy(alpha = alpha * 0.48f),
+                b.radius * 0.33f,
+                Offset(x - b.radius * 0.26f, y - b.radius * 0.26f),
+            )
+            // Thin outline
+            drawCircle(
+                color.copy(alpha = alpha * 0.22f), b.radius, Offset(x, y),
+                style = Stroke(0.9f),
+            )
+        }
+    }
+}
+
+// D) Water Ripple + Blossom — Notifications
+//    Three expanding ripple rings around a 4-petal flower at the center.
+@Composable
+private fun WaterRippleSymbol(color: Color) {
+    val tp = rememberInfiniteTransition(label = "ripple")
+    val progress by tp.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing), RepeatMode.Restart),
+        label = "rProg",
+    )
+    val petalPulse by tp.animateFloat(
+        initialValue = 0.88f, targetValue = 1.00f,
+        animationSpec = infiniteRepeatable(
+            tween(2000, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "pPulse",
+    )
+    Canvas(modifier = Modifier.size(82.dp, 66.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val maxR = size.height * 0.43f
+
+        // Ripple rings
+        for (i in 0..2) {
+            val ph = (progress + i * 0.334f) % 1f
+            val r = maxR * ph
+            val a = (1f - ph) * 0.55f
+            drawCircle(color.copy(alpha = a), r, Offset(cx, cy), style = Stroke(1.6f))
+        }
+
+        // 4-petal blossom — each petal is an oval rotated outward
+        val pr = maxR * 0.24f * petalPulse
+        for (i in 0..3) {
+            withTransform({
+                rotate(i * 90f, Offset(cx, cy))
+            }) {
+                drawOval(
+                    color = color.copy(alpha = 0.65f),
+                    topLeft = Offset(cx - pr * 0.24f, cy - pr * 0.92f),
+                    size = Size(pr * 0.48f, pr * 0.75f),
+                )
+            }
+        }
+        // Blossom centre
+        drawCircle(Color(0xFFF5EDD0).copy(alpha = 0.92f), pr * 0.30f, Offset(cx, cy))
+    }
+}
+
+// E) Petal Burst — Share Invitation (used inside GlassNavPill)
+//    Eight alternating-length petals radiating from a gold centre, rotating slowly.
+@Composable
+private fun PetalBurstSymbol(color: Color) {
+    val ts = rememberInfiniteTransition(label = "burst")
+    val rot by ts.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
+        label = "sRot",
+    )
+    val pulse by ts.animateFloat(
+        initialValue = 0.88f, targetValue = 1.00f,
+        animationSpec = infiniteRepeatable(
+            tween(2200, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "sPulse",
+    )
+    Canvas(modifier = Modifier.size(60.dp, 50.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        for (i in 0 until 8) {
+            val isLong = i % 2 == 0
+            val petalH = (if (isLong) size.height * 0.37f else size.height * 0.22f) * pulse
+            val petalW = (if (isLong) 5.2f else 3.4f) * pulse
+            val alpha = if (isLong) 0.82f else 0.48f
+            withTransform({
+                rotate(i * 45f + rot, Offset(cx, cy))
+            }) {
+                drawOval(
+                    color = color.copy(alpha = alpha),
+                    topLeft = Offset(cx - petalW / 2f, cy - petalH),
+                    size = Size(petalW, petalH * 0.65f),
+                )
+            }
+        }
+        drawCircle(color.copy(alpha = 0.88f), 4.6f * pulse, Offset(cx, cy))
+        drawCircle(Color.White.copy(alpha = 0.55f), 2.0f * pulse, Offset(cx, cy))
+    }
+}
+
+// ── Share Invitation pill — "Spread the Joy" ──────────────────────────────────
+
+@Composable
+private fun GlassNavPill(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow),
+        label = "pillScale",
+    )
+
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(400L)
+        entered = true
+    }
+    val entryAlpha by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        animationSpec = tween(340, easing = FastOutSlowInEasing),
+        label = "pillAlpha",
+    )
+    val entrySlide by animateFloatAsState(
+        targetValue = if (entered) 0f else 18f,
+        animationSpec = tween(340, easing = FastOutSlowInEasing),
+        label = "pillSlide",
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale; scaleY = scale
+                alpha = entryAlpha
+                translationY = entrySlide
+            }
+            .shadow(
+                elevation = if (isPressed) 2.dp else 8.dp,
+                shape = RoundedCornerShape(22.dp),
+                ambientColor = GoldDeep.copy(alpha = 0.18f),
+                spotColor = GoldDeep.copy(alpha = 0.28f),
+            )
+            .clip(RoundedCornerShape(22.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFFFBF5E4), Color(0xFFF5EDD4), Color(0xFFFAF4E6))
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        Gold.copy(alpha = 0.72f),
+                        Color(0xFFFFE599).copy(alpha = 0.44f),
+                        Gold.copy(alpha = 0.58f),
+                    )
+                ),
+                shape = RoundedCornerShape(22.dp),
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        PetalBurstSymbol(color = GoldDeep)
+
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                text = "Spread the Joy",
+                style = TextStyle(
+                    fontFamily = DancingScript,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    color = Color(0xFF2E2017),
+                    letterSpacing = 0.sp,
+                ),
+            )
+            Text(
+                text = "Share invitation  ·  QR code  ·  PDF",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 11.sp, letterSpacing = 0.3.sp,
+                ),
+                color = Color(0xFF9B8467).copy(alpha = 0.88f),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Gold.copy(alpha = 0.16f))
+                .border(0.8.dp, Gold.copy(alpha = 0.40f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = GoldDeep,
+                modifier = Modifier.size(18.dp),
             )
         }
     }

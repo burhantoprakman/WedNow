@@ -18,6 +18,15 @@ object GuestSessionManager {
         return newId
     }
 
+    /**
+     * Replaces the local guestId.  Called by [LinkGuestToAuthUseCase] when a
+     * previously-linked guestId is recovered from another device via Firebase Auth.
+     */
+    fun saveGuestId(context: Context, guestId: String) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_GUEST_ID, guestId).apply()
+    }
+
     /** Called after a guest successfully joins (or creates) a wedding so the
      *  display name is available for photo uploads and other UI. */
     fun saveGuestName(context: Context, name: String) {

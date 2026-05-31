@@ -24,6 +24,9 @@ class GuestRepositoryImpl @Inject constructor(
     override suspend fun updateGuest(weddingId: String, guest: Guest): Result<Unit> =
         service.updateGuest(weddingId, guest)
 
+    override suspend fun updateGuestRole(weddingId: String, guestId: String, role: String) =
+        service.updateGuestRole(weddingId, guestId, role)
+
     override suspend fun updateRsvp(weddingId: String, guestId: String, status: String): Result<Unit> =
         service.updateRsvp(weddingId, guestId, status)
 

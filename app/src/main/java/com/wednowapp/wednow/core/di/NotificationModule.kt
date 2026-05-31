@@ -14,5 +14,7 @@ abstract class NotificationModule {
 
     @Binds
     @Singleton
-    abstract fun bindNotificationRepository(impl: NotificationRepositoryImpl): NotificationRepository
+    abstract fun bindNotificationRepository(
+        impl: NotificationRepositoryImpl,
+    ): NotificationRepository
 }

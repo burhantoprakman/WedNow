@@ -2,6 +2,7 @@ package com.wednowapp.wednow.domain.usecase
 
 import android.content.Context
 import android.net.Uri
+import com.wednowapp.wednow.core.identity.IdentityManager
 import com.wednowapp.wednow.core.session.GuestSessionManager
 import com.wednowapp.wednow.domain.model.GuestbookPost
 import com.wednowapp.wednow.domain.repository.GuestbookRepository
@@ -11,6 +12,7 @@ import javax.inject.Inject
 
 class AddGuestbookPostUseCase @Inject constructor(
     private val repository: GuestbookRepository,
+    private val identityManager: IdentityManager,
     @ApplicationContext private val context: Context,
 ) {
     suspend operator fun invoke(
@@ -20,6 +22,7 @@ class AddGuestbookPostUseCase @Inject constructor(
     ): Result<Unit> {
         val guestId = GuestSessionManager.getGuestId(context)
         val senderName = GuestSessionManager.getGuestName(context).ifBlank { "A Guest" }
+        val identityId = identityManager.currentIdentityId   // UUID (guest) or Firebase UID (user)
         val postId = UUID.randomUUID().toString()
 
         // Upload photos first — fail fast if any upload fails
@@ -37,6 +40,8 @@ class AddGuestbookPostUseCase @Inject constructor(
             message = message.trim(),
             photoUrls = photoUrls,
             timestamp = System.currentTimeMillis(),
+            ownerUserId = identityId,   // kept for legacy compat
+            ownerIdentityId = identityId,   // unified ownership field
         )
         return repository.addPost(weddingId, post)
     }

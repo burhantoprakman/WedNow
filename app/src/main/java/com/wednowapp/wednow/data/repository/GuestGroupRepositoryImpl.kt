@@ -11,6 +11,7 @@ import javax.inject.Singleton
 class GuestGroupRepositoryImpl @Inject constructor(
     private val service: GuestGroupFirestoreService,
 ) : GuestGroupRepository {
+
     override fun getGuestGroups(weddingId: String): Flow<List<GuestGroup>> =
         service.getGuestGroups(weddingId)
 
@@ -22,4 +23,10 @@ class GuestGroupRepositoryImpl @Inject constructor(
 
     override suspend fun deleteGuestGroup(weddingId: String, groupId: String): Result<Unit> =
         service.deleteGuestGroup(weddingId, groupId)
+
+    override suspend fun findGroupByInviteToken(token: String): Result<GuestGroup?> =
+        service.findByInviteToken(token)
+
+    override suspend fun backfillInviteTokens(groups: List<GuestGroup>) =
+        service.backfillInviteTokens(groups)
 }

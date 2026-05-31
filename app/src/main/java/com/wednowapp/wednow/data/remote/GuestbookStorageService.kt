@@ -32,4 +32,32 @@ class GuestbookStorageService @Inject constructor(
             ref.downloadUrl.await().toString()
         }
     }
+
+    /**
+     * Uploads [uris] during an **edit** session using timestamp-based names so
+     * they never collide with the original `photo_0 / photo_1 / photo_2` files.
+     */
+    suspend fun uploadEditPhotos(
+        weddingId: String,
+        postId: String,
+        uris: List<Uri>,
+    ): Result<List<String>> = runCatching {
+        val ts = System.currentTimeMillis()
+        uris.mapIndexed { idx, uri ->
+            val ref = storage.reference
+                .child("weddings/$weddingId/guestbook/$postId/edit_${ts}_$idx")
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: error("Cannot read edit photo at index $idx. Please try again.")
+            ref.putBytes(bytes).await()
+            ref.downloadUrl.await().toString()
+        }
+    }
+
+    /**
+     * Deletes the file at the given Firebase Storage download [url].
+     * Silently continues if the file no longer exists.
+     */
+    suspend fun deletePhoto(url: String): Result<Unit> = runCatching {
+        storage.getReferenceFromUrl(url).delete().await()
+    }
 }

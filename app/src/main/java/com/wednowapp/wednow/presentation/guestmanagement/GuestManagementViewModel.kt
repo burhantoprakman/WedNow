@@ -7,11 +7,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.wednowapp.wednow.core.navigation.Screen
 import com.wednowapp.wednow.domain.model.GuestGroup
 import com.wednowapp.wednow.domain.model.GuestMember
 import com.wednowapp.wednow.domain.model.GuestRole
 import com.wednowapp.wednow.domain.model.MemberRole
+import com.wednowapp.wednow.domain.repository.GuestGroupRepository
 import com.wednowapp.wednow.domain.usecase.AddGuestGroupUseCase
 import com.wednowapp.wednow.domain.usecase.DeleteGuestGroupUseCase
 import com.wednowapp.wednow.domain.usecase.GetCurrentGuestUseCase
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -61,6 +64,7 @@ class GuestManagementViewModel @Inject constructor(
     private val updateGuestGroupUseCase: UpdateGuestGroupUseCase,
     private val deleteGuestGroupUseCase: DeleteGuestGroupUseCase,
     private val getCurrentGuestUseCase: GetCurrentGuestUseCase,
+    private val guestGroupRepository: GuestGroupRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -72,6 +76,13 @@ class GuestManagementViewModel @Inject constructor(
 
     private val _isAdmin = MutableStateFlow(false)
     val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
+
+    /**
+     * True when the guest has admin/co-admin role AND is signed in via Firebase Auth.
+     * Screens use this to decide whether to gate management actions behind [SignInBottomSheet].
+     */
+    val isAuthenticatedAdmin: Boolean
+        get() = _isAdmin.value && FirebaseAuth.getInstance().currentUser != null
 
     private val _actionState = MutableStateFlow<GroupActionState>(GroupActionState.Idle)
     val actionState: StateFlow<GroupActionState> = _actionState.asStateFlow()
@@ -102,6 +113,13 @@ class GuestManagementViewModel @Inject constructor(
         viewModelScope.launch {
             val guest = getCurrentGuestUseCase(weddingId).first()
             _isAdmin.value = guest?.role == GuestRole.ADMIN || guest?.role == GuestRole.COADMIN
+        }
+
+        // Backfill inviteTokens reverse-lookup entries for groups that existed
+        // before this feature was added. Runs once per session when groups first arrive.
+        viewModelScope.launch {
+            val existingGroups = groups.filterNotNull().first()
+            guestGroupRepository.backfillInviteTokens(existingGroups)
         }
     }
 

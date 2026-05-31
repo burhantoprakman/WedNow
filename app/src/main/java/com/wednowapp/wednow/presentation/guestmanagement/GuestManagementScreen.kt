@@ -64,7 +64,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,6 +83,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -124,6 +128,22 @@ fun GuestManagementScreen(
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // ── Auth gate ─────────────────────────────────────────────────────────────
+    val authViewModel = LocalAuthViewModel.current
+    var showSignIn by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    /**
+     * Run [action] immediately if the admin is already authenticated,
+     * otherwise store it and open the sign-in sheet.
+     */
+    fun gatedAction(action: () -> Unit) {
+        if (viewModel.isAuthenticatedAdmin) action()
+        else {
+            pendingAction = action; showSignIn = true
+        }
+    }
+
     val isOnboarding = onContinue != null
     // Extra bottom padding so list content isn't hidden behind the Continue bar
     val listBottomPad = if (isOnboarding) 88.dp else Spacing.xxl
@@ -144,7 +164,7 @@ fun GuestManagementScreen(
                 isAdmin = isAdmin,
                 isOnboarding = isOnboarding,
                 onBack = onBack,
-                onAdd = viewModel::openAddSheet,
+                onAdd = { gatedAction { viewModel.openAddSheet() } },
             )
 
             LazyColumn(
@@ -183,7 +203,9 @@ fun GuestManagementScreen(
                 when {
                     groups == null -> item { LoadingGroupsState() }
                     groups!!.isEmpty() -> item {
-                        EmptyGroupsState(isAdmin = isAdmin, onAdd = viewModel::openAddSheet)
+                        EmptyGroupsState(
+                            isAdmin = isAdmin,
+                            onAdd = { gatedAction { viewModel.openAddSheet() } })
                     }
 
                     else -> items(groups!!, key = { it.id }) { group ->
@@ -194,8 +216,8 @@ fun GuestManagementScreen(
                             onToggle = { viewModel.toggleExpand(group.id) },
                             onShare = { shareInvitation(context, group) },
                             onShowQr = { viewModel.showQr(group) },
-                            onEdit = { viewModel.openEditSheet(group) },
-                            onDelete = { viewModel.requestDelete(group) },
+                            onEdit = { gatedAction { viewModel.openEditSheet(group) } },
+                            onDelete = { gatedAction { viewModel.requestDelete(group) } },
                         )
                     }
                 }
@@ -242,6 +264,24 @@ fun GuestManagementScreen(
                 onRemoveMember = viewModel::removeMember,
                 onSave = viewModel::saveGroup,
                 onDismiss = viewModel::dismissSheet,
+            )
+        }
+
+        // ── Auth sign-in sheet (for unauthenticated admins / co-admins) ───────
+        if (showSignIn) {
+            SignInBottomSheet(
+                authViewModel = authViewModel,
+                reason = "Sign in to manage guests for this wedding.",
+                onDismiss = {
+                    showSignIn = false
+                    pendingAction = null
+                    authViewModel.clearError()
+                },
+                onSuccess = {
+                    showSignIn = false
+                    pendingAction?.invoke()
+                    pendingAction = null
+                },
             )
         }
     }
