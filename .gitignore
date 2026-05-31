@@ -5,11 +5,14 @@
 /.idea/libraries
 /.idea/modules.xml
 /.idea/workspace.xml
-/.idea/navEditor.xml
+/.idea/navEditor.xm/l
+node_modules/
+functions/node_modules/
 /.idea/assetWizardSettings.xml
 .DS_Store
+.firebaserc
 /build
-/captures
+/functions
 .externalNativeBuild
 .cxx
 local.properties
