@@ -50,7 +50,6 @@ import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
@@ -76,7 +75,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -104,10 +102,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.wednowapp.wednow.R
+import com.wednowapp.wednow.domain.model.GuestRole
 import com.wednowapp.wednow.domain.model.Wedding
-import com.wednowapp.wednow.presentation.auth.AccountMenuSheet
-import com.wednowapp.wednow.presentation.auth.AuthViewModel
+import com.wednowapp.wednow.presentation.auth.GuestPassSheet
 import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.wednowapp.wednow.ui.components.WedNowErrorScreen
 import com.wednowapp.wednow.ui.components.WedNowLoadingScreen
 import com.wednowapp.wednow.ui.theme.BlushDeep
@@ -117,16 +116,18 @@ import com.wednowapp.wednow.ui.theme.Gold
 import com.wednowapp.wednow.ui.theme.GoldDeep
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
+import com.wednowapp.wednow.ui.theme.WarmGray400
 import com.wednowapp.wednow.ui.theme.WarmGray500
+import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.delay
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 // ── Script font for romantic subtitle ─────────────────────────────────────────
 
@@ -181,6 +182,7 @@ fun HomeScreen(
             HomeContent(
                 wedding = s.wedding,
                 isPrivileged = s.isPrivileged,
+                guestRole = s.guestRole,
                 unreadNotificationCount = unreadCount,
                 onNavigateToRSVP = onNavigateToRSVP,
                 onNavigateToGuestbook = onNavigateToGuestbook,
@@ -203,6 +205,7 @@ fun HomeScreen(
 private fun HomeContent(
     wedding: Wedding,
     isPrivileged: Boolean,
+    guestRole: String = GuestRole.GUEST,
     unreadNotificationCount: Int,
     onNavigateToRSVP: () -> Unit,
     onNavigateToGuestbook: () -> Unit,
@@ -219,6 +222,7 @@ private fun HomeContent(
 
     var showNavHub by remember { mutableStateOf(false) }
     var showAccountSheet by remember { mutableStateOf(false) }
+    var showSignInSheet by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { visible = true }
@@ -283,58 +287,66 @@ private fun HomeContent(
             }
             item { Spacer(Modifier.height(Spacing.xxl)) }
             item { ElegantFooter(Modifier.alpha(previewAlpha)) }
+            item { Spacer(Modifier.height(Spacing.lg)) }
+            item {
+                GuestPassCard(
+                    userName = authState?.displayName,
+                    guestRole = guestRole,
+                    onClick = { showAccountSheet = true },
+                    modifier = Modifier
+                        .alpha(previewAlpha)
+                        .padding(horizontal = Spacing.screenHorizontal),
+                )
+            }
             item { Spacer(Modifier.height(Spacing.xl)) }
         }
 
-        // Account button — top-right overlay
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = Spacing.screenHorizontal, top = 6.dp)
-        ) {
-            Card(
-                onClick = { showAccountSheet = true },
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Ivory),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (authState != null) {
-                        val initial = authState!!.displayName?.firstOrNull()?.uppercaseChar() ?: '?'
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Gold.copy(alpha = 0.20f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = initial.toString(),
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = GoldDeep,
-                                ),
-                            )
-                        }
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Account",
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
-        }
     }
 
     if (showAccountSheet) {
-        AccountMenuSheet(
-            authViewModel = authViewModel,
+        val context = LocalContext.current
+        GuestPassSheet(
+            isSignedIn = authState != null,
+            userName = authState?.displayName,
+            userEmail = authState?.email,
+            userInitial = authState?.displayName?.firstOrNull()?.uppercaseChar(),
+            guestRole = guestRole,
             onDismiss = { showAccountSheet = false },
+            onSignIn = { showAccountSheet = false; showSignInSheet = true },
+            onSignOut = { authViewModel.signOut(); showAccountSheet = false },
+            onPrivacyPolicy = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://wednow.app/privacy"),
+                    )
+                )
+            },
+            onTermsAndConditions = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://wednow.app/terms"),
+                    )
+                )
+            },
+            onContactSupport = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("mailto:hello@wednow.app"),
+                    )
+                )
+            },
+        )
+    }
+
+    if (showSignInSheet) {
+        SignInBottomSheet(
+            authViewModel = authViewModel,
+            reason = "Sign in to save your RSVP, share photos, and stay connected.",
+            onDismiss = { showSignInSheet = false },
+            onSuccess = { showSignInSheet = false },
         )
     }
 
@@ -371,6 +383,178 @@ private fun MenuButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 contentDescription = "Menu",
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+// ── Guest Pass Card ───────────────────────────────────────────────────────────
+
+/**
+ * A miniature wedding-invitation-style card that lives near the bottom of the
+ * home feed.  Tapping it expands [GuestPassSheet].
+ *
+ * Collapsed state shows:
+ *   • Invitation ornament (✦ line ♡) on the left
+ *   • "YOUR GUEST PASS" label + guest name in the script font
+ *   • Role badge pill (Guest / Admin / Co-Host)
+ *   • Subtle right chevron
+ */
+@Composable
+private fun GuestPassCard(
+    userName: String?,
+    guestRole: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
+        label = "passCardScale",
+    )
+
+    val displayName = if (!userName.isNullOrBlank()) userName else "Valued Guest"
+    val roleLabel = when (guestRole.lowercase()) {
+        "admin" -> "Admin"
+        "coadmin" -> "Co‑Host"
+        else -> "Guest"
+    }
+
+    Box(
+        modifier = modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .fillMaxWidth()
+            .shadow(
+                elevation = 5.dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = Gold.copy(alpha = 0.14f),
+                spotColor = Gold.copy(alpha = 0.09f),
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.90f),
+                        ChampagneLight.copy(alpha = 0.52f),
+                        Color.White.copy(alpha = 0.82f),
+                    )
+                )
+            )
+            .border(
+                width = 0.8.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        Gold.copy(alpha = 0.52f),
+                        Gold.copy(alpha = 0.20f),
+                        Gold.copy(alpha = 0.48f),
+                    )
+                ),
+                shape = RoundedCornerShape(24.dp),
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+
+            // ── Invitation ornament (left) ─────────────────────────────────
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.width(18.dp),
+            ) {
+                Text("✦", fontSize = 7.sp, color = Gold.copy(0.58f))
+                Spacer(Modifier.height(2.dp))
+                Box(
+                    modifier = Modifier
+                        .width(0.8.dp)
+                        .height(14.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Gold.copy(0.44f), Gold.copy(0.10f))
+                            )
+                        )
+                )
+                Spacer(Modifier.height(2.dp))
+                Text("♡", fontSize = 8.sp, color = Gold.copy(0.62f))
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            // ── Guest name ────────────────────────────────────────────────
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = "YOUR GUEST PASS",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.sp,
+                        letterSpacing = 1.8.sp,
+                        fontWeight = FontWeight.Normal,
+                    ),
+                    color = WarmGray400,
+                )
+                Text(
+                    text = displayName,
+                    style = TextStyle(
+                        fontFamily = DancingScript,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 20.sp,
+                        color = WarmGray800,
+                    ),
+                )
+            }
+
+            Spacer(Modifier.width(10.dp))
+
+            // ── Role badge ─────────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(ChampagneLight, Champagne.copy(0.68f))
+                        )
+                    )
+                    .border(
+                        width = 0.8.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(Gold.copy(0.40f), Gold.copy(0.16f))
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = roleLabel.uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 8.sp,
+                        letterSpacing = 1.5.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = GoldDeep,
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // ── Open indicator ─────────────────────────────────────────────
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Open Guest Pass",
+                tint = Gold.copy(0.68f),
+                modifier = Modifier.size(18.dp),
             )
         }
     }

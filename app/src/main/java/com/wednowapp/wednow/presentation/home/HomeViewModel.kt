@@ -60,9 +60,10 @@ class HomeViewModel @Inject constructor(
                     }
                     val guest =
                         runCatching { getCurrentGuestUseCase(weddingId).first() }.getOrNull()
+                    val guestRole = guest?.role ?: GuestRole.GUEST
                     val isPrivileged =
-                        guest?.role == GuestRole.ADMIN || guest?.role == GuestRole.COADMIN
-                    _state.value = WeddingDetailState.Success(wedding, isPrivileged)
+                        guestRole == GuestRole.ADMIN || guestRole == GuestRole.COADMIN
+                    _state.value = WeddingDetailState.Success(wedding, isPrivileged, guestRole)
                 }
                 .onFailure { error ->
                     _state.value = WeddingDetailState.Error(
@@ -75,6 +76,10 @@ class HomeViewModel @Inject constructor(
 
 sealed class WeddingDetailState {
     object Loading : WeddingDetailState()
-    data class Success(val wedding: Wedding, val isPrivileged: Boolean) : WeddingDetailState()
+    data class Success(
+        val wedding: Wedding,
+        val isPrivileged: Boolean,
+        val guestRole: String = GuestRole.GUEST,
+    ) : WeddingDetailState()
     data class Error(val message: String) : WeddingDetailState()
 }
