@@ -1,15 +1,17 @@
 package com.wednowapp.wednow.presentation.guests
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,21 +29,42 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PeopleAlt
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAddAlt
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,9 +73,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,19 +86,33 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 import com.wednowapp.wednow.domain.model.Guest
+import com.wednowapp.wednow.domain.model.GuestGroup
+import com.wednowapp.wednow.domain.model.GuestMember
 import com.wednowapp.wednow.domain.model.GuestRole
+import com.wednowapp.wednow.domain.model.MemberRole
 import com.wednowapp.wednow.domain.model.RSVPStatus
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.wednowapp.wednow.ui.components.AvatarCircle
 import com.wednowapp.wednow.ui.theme.BlushDeep
 import com.wednowapp.wednow.ui.theme.BlushLight
 import com.wednowapp.wednow.ui.theme.ChampagneLight
+import com.wednowapp.wednow.ui.theme.ErrorRose
+import com.wednowapp.wednow.ui.theme.ErrorRoseLight
 import com.wednowapp.wednow.ui.theme.Gold
 import com.wednowapp.wednow.ui.theme.GoldDeep
+import com.wednowapp.wednow.ui.theme.GoldLight
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
+import com.wednowapp.wednow.ui.theme.SuccessSage
 import com.wednowapp.wednow.ui.theme.WarmGray100
 import com.wednowapp.wednow.ui.theme.WarmGray200
 import com.wednowapp.wednow.ui.theme.WarmGray300
@@ -82,28 +122,7 @@ import com.wednowapp.wednow.ui.theme.WarmGray500
 import com.wednowapp.wednow.ui.theme.WarmGray600
 import com.wednowapp.wednow.ui.theme.WarmGray700
 import com.wednowapp.wednow.ui.theme.WarmGray800
-
-// ── Internal layout model ──────────────────────────────────────────────────────
-
-private data class GuestGroup(
-    val label: String,
-    val accentColor: Color,
-    val guests: List<Guest>,
-)
-
-private fun groupGuests(guests: List<Guest>): List<GuestGroup> {
-    val going = guests.filter { it.rsvpStatus == RSVPStatus.GOING }.sortedBy { it.name.lowercase() }
-    val maybe = guests.filter { it.rsvpStatus == RSVPStatus.MAYBE }.sortedBy { it.name.lowercase() }
-    val notGoing =
-        guests.filter { it.rsvpStatus == RSVPStatus.NOT_GOING }.sortedBy { it.name.lowercase() }
-    val pending = guests.filter { it.rsvpStatus.isNullOrBlank() }.sortedBy { it.name.lowercase() }
-    return buildList {
-        if (going.isNotEmpty())    add(GuestGroup("Attending",     BlushDeep,   going))
-        if (maybe.isNotEmpty()) add(GuestGroup("Maybe", Gold, maybe))
-        if (pending.isNotEmpty()) add(GuestGroup("Yet to Reply", WarmGray400, pending))
-        if (notGoing.isNotEmpty()) add(GuestGroup("Not Attending", WarmGray400, notGoing))
-    }
-}
+import com.wednowapp.wednow.ui.theme.WarmWhite
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -112,45 +131,59 @@ fun GuestListScreen(
     onBack: () -> Unit,
     viewModel: GuestListViewModel = hiltViewModel(),
 ) {
-    val guests       by viewModel.guests.collectAsStateWithLifecycle()
+    val guests by viewModel.guests.collectAsStateWithLifecycle()
     val currentGuest by viewModel.currentGuest.collectAsStateWithLifecycle()
+    val guestGroupsById by viewModel.guestGroupsById.collectAsStateWithLifecycle()
+    val isPrivileged by viewModel.isPrivileged.collectAsStateWithLifecycle()
+    val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    GuestListContent(
-        guests         = guests,
-        currentGuestId = currentGuest?.id,
-        onBack         = onBack,
-    )
-}
+    // ── Auth gate ─────────────────────────────────────────────────────────────
+    val authViewModel = LocalAuthViewModel.current
+    var showSignIn by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
-// ── Content ───────────────────────────────────────────────────────────────────
+    fun gatedAction(action: () -> Unit) {
+        if (viewModel.isAuthenticatedAdmin) action()
+        else {
+            pendingAction = action; showSignIn = true
+        }
+    }
 
-@Composable
-private fun GuestListContent(
-    guests: List<Guest>?,        // null = first Firestore snapshot not yet received
-    currentGuestId: String?,
-    onBack: () -> Unit,
-) {
     val guestList = guests ?: emptyList()
-    val groups = remember(guestList) { groupGuests(guestList) }
-    val going = remember(guestList) { guestList.count { it.rsvpStatus == RSVPStatus.GOING } }
-    val maybe = remember(guestList) { guestList.count { it.rsvpStatus == RSVPStatus.MAYBE } }
-    val notGoing = remember(guestList) { guestList.count { it.rsvpStatus == RSVPStatus.NOT_GOING } }
-    val pending = remember(guestList) { guestList.count { it.rsvpStatus.isNullOrBlank() } }
+    val groups =
+        remember(guestGroupsById) { guestGroupsById.values.sortedBy { it.familyName.lowercase() } }
+    val ungrouped = remember(guestList, guestGroupsById) {
+        guestList.filter { it.groupId == null || it.groupId !in guestGroupsById }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    val allMemberStatuses = remember(groups, ungrouped) {
+        groups.flatMap { g -> g.members.map { it.rsvpStatus } } +
+                ungrouped.map { it.rsvpStatus }
+    }
+    val going = remember(allMemberStatuses) { allMemberStatuses.count { it == RSVPStatus.GOING } }
+    val maybe = remember(allMemberStatuses) { allMemberStatuses.count { it == RSVPStatus.MAYBE } }
+    val notGoing =
+        remember(allMemberStatuses) { allMemberStatuses.count { it == RSVPStatus.NOT_GOING } }
+    val pending = remember(allMemberStatuses) { allMemberStatuses.count { it.isNullOrBlank() } }
+    val totalCount = groups.sumOf { it.members.size } + ungrouped.size
 
     Box(modifier = Modifier.fillMaxSize()) {
-
-        // Background — very subtle champagne fade
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(ChampagneLight.copy(alpha = 0.28f), Ivory, Ivory, Ivory)
+                        listOf(
+                            ChampagneLight.copy(alpha = 0.28f),
+                            Ivory,
+                            Ivory,
+                            Ivory
+                        )
                     )
                 )
         )
-
-        // Background florals — barely perceptible, atmosphere only
         GuestListFlorals()
 
         Column(
@@ -163,20 +196,15 @@ private fun GuestListContent(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(bottom = if (isPrivileged) 96.dp else 24.dp),
             ) {
-                item {
-                    GuestListHeader(guestCount = guests?.size ?: 0)
-                }
+                item { GuestListHeader(guestCount = totalCount) }
 
                 when {
-                    // ── Loading ────────────────────────────────────────────────
                     guests == null -> item { LoadingGuestsState() }
 
-                    // ── Empty ──────────────────────────────────────────────────
-                    guests.isEmpty() -> item { EmptyGuestState(Modifier.fillMaxWidth()) }
+                    groups.isEmpty() && ungrouped.isEmpty() -> item { EmptyGuestState(Modifier.fillMaxWidth()) }
 
-                    // ── Populated ─────────────────────────────────────────────
                     else -> {
                         item {
                             RSVPStatusSummary(
@@ -187,31 +215,131 @@ private fun GuestListContent(
                             )
                         }
 
-                        groups.forEach { group ->
-                            item(key = "hdr_${group.label}") {
-                                GuestSectionHeader(
-                                    label = group.label,
-                                    count = group.guests.size,
-                                    accentColor = group.accentColor,
-                                )
+                        // ── Family groups ──────────────────────────────────────────
+                        if (groups.isNotEmpty()) {
+                            item(key = "hdr_groups") {
+                                SectionHeader(label = "Family Groups", count = groups.size)
                             }
-                            items(group.guests, key = { it.id }) { guest ->
-                                GuestCard(
-                                    guest = guest,
-                                    isCurrentUser = guest.id == currentGuestId,
+                            items(groups, key = { it.id }) { group ->
+                                val isCurrentGroup = guestList
+                                    .find { it.id == currentGuest?.id }
+                                    ?.groupId == group.id
+                                GuestGroupCard(
+                                    group = group,
+                                    expanded = group.id in viewModel.expandedIds,
+                                    isCurrentGroup = isCurrentGroup,
+                                    isPrivileged = isPrivileged,
+                                    onToggle = { viewModel.toggleExpand(group.id) },
+                                    onShare = { shareInvitation(context, group) },
+                                    onShowQr = { gatedAction { viewModel.showQr(group) } },
+                                    onEdit = { gatedAction { viewModel.openEditSheet(group) } },
+                                    onDelete = { gatedAction { viewModel.requestDelete(group) } },
                                     modifier = Modifier.padding(
                                         horizontal = Spacing.screenHorizontal,
                                         vertical = 3.dp,
                                     ),
                                 )
                             }
-                            item(key = "sp_${group.label}") {
-                                Spacer(Modifier.height(Spacing.xs))
+                            item(key = "sp_groups") { Spacer(Modifier.height(Spacing.xs)) }
+                        }
+
+                        // ── Individual guests (no group) ───────────────────────────
+                        if (ungrouped.isNotEmpty()) {
+                            item(key = "hdr_individual") {
+                                SectionHeader(label = "Individual Guests", count = ungrouped.size)
                             }
+                            items(ungrouped, key = { it.id }) { guest ->
+                                IndividualGuestCard(
+                                    guest = guest,
+                                    isCurrentUser = guest.id == currentGuest?.id,
+                                    modifier = Modifier.padding(
+                                        horizontal = Spacing.screenHorizontal,
+                                        vertical = 3.dp,
+                                    ),
+                                )
+                            }
+                            item(key = "sp_individual") { Spacer(Modifier.height(Spacing.xs)) }
                         }
                     }
                 }
             }
+        }
+
+        // ── Add Guests FAB (admin / co-admin only) ────────────────────────────
+        if (isPrivileged) {
+            ExtendedFloatingActionButton(
+                onClick = { gatedAction { viewModel.openAddSheet() } },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Add Guests",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = Spacing.screenHorizontal, bottom = Spacing.lg),
+                containerColor = Gold,
+                contentColor = Color.White,
+            )
+        }
+
+        // ── Dialogs & sheets ──────────────────────────────────────────────────
+
+        if (viewModel.qrTarget != null) {
+            QrCodeDialog(
+                group = viewModel.qrTarget!!,
+                onDismiss = viewModel::dismissQr,
+                onShare = { shareInvitation(context, viewModel.qrTarget!!) },
+            )
+        }
+
+        if (viewModel.pendingDeleteGroup != null) {
+            DeleteConfirmDialog(
+                groupName = viewModel.pendingDeleteGroup!!.familyName,
+                onConfirm = viewModel::confirmDelete,
+                onDismiss = viewModel::cancelDelete,
+            )
+        }
+
+        if (viewModel.showSheet) {
+            AddEditGroupSheet(
+                draft = viewModel.draft,
+                isEditing = viewModel.editingGroupId != null,
+                actionState = actionState,
+                onFamilyNameChange = viewModel::onFamilyNameChange,
+                onMemberNameChange = viewModel::onMemberNameChange,
+                onMemberRoleChange = viewModel::onMemberRoleChange,
+                onMemberPlusOneChange = viewModel::onMemberPlusOneChange,
+                onAddMember = viewModel::addMember,
+                onRemoveMember = viewModel::removeMember,
+                onSave = viewModel::saveGroup,
+                onDismiss = viewModel::dismissSheet,
+            )
+        }
+
+        // ── Auth sign-in sheet (for unauthenticated admins / co-admins) ───────
+        if (showSignIn) {
+            SignInBottomSheet(
+                authViewModel = authViewModel,
+                reason = "Sign in to manage guests for this wedding.",
+                onDismiss = {
+                    showSignIn = false
+                    pendingAction = null
+                    authViewModel.clearError()
+                },
+                onSuccess = {
+                    showSignIn = false
+                    pendingAction?.invoke()
+                    pendingAction = null
+                },
+            )
         }
     }
 }
@@ -269,17 +397,15 @@ private fun GuestListHeader(guestCount: Int) {
                 text  = "Celebrating together",
                 style = TextStyle(
                     fontFamily = serifFamily,
-                    fontStyle  = FontStyle.Italic,
+                    fontStyle = FontStyle.Italic,
                     fontSize = 14.sp,
-                    color = WarmGray400,
+                    color = WarmGray400
                 ),
             )
-            Box(
-                modifier = Modifier
-                    .size(2.5.dp)
-                    .clip(CircleShape)
-                    .background(WarmGray200),
-            )
+            Box(modifier = Modifier
+                .size(2.5.dp)
+                .clip(CircleShape)
+                .background(WarmGray200))
             Text(
                 text = if (guestCount > 0) "$guestCount invited" else "",
                 style = MaterialTheme.typography.bodySmall,
@@ -290,35 +416,80 @@ private fun GuestListHeader(guestCount: Int) {
     }
 }
 
+// ── Section header ────────────────────────────────────────────────────────────
+
+@Composable
+private fun SectionHeader(label: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screenHorizontal)
+            .padding(top = Spacing.md, bottom = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier
+            .size(4.dp)
+            .clip(CircleShape)
+            .background(Gold.copy(alpha = 0.40f)))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.2.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            color = WarmGray500,
+        )
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            color = WarmGray300
+        )
+        Spacer(Modifier.width(Spacing.sm))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            WarmGray200,
+                            WarmGray100,
+                            Color.Transparent
+                        )
+                    )
+                ),
+        )
+    }
+}
+
 // ── Loading state ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun LoadingGuestsState() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .height(200.dp), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             CircularProgressIndicator(
                 modifier = Modifier.size(28.dp),
                 color = Gold,
-                strokeWidth = 2.dp,
+                strokeWidth = 2.dp
             )
             Text(
                 text = "Loading guests…",
                 style = MaterialTheme.typography.bodySmall,
-                color = WarmGray400,
+                color = WarmGray400
             )
         }
     }
 }
 
-// ── RSVP status summary ───────────────────────────────────────────────────────
+// ── RSVP summary ──────────────────────────────────────────────────────────────
 
 @Composable
 private fun RSVPStatusSummary(going: Int, maybe: Int, notGoing: Int, pending: Int) {
@@ -338,31 +509,25 @@ private fun RSVPStatusSummary(going: Int, maybe: Int, notGoing: Int, pending: In
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RSVPStatItem(count = going, label = "Attending", color = BlushDeep)
-
+            RSVPStatItem(count = going, label = "Attending", color = SuccessSage)
             VerticalDivider(
                 modifier = Modifier.height(28.dp),
                 color = WarmGray100,
-                thickness = 1.dp,
+                thickness = 1.dp
             )
-
             RSVPStatItem(count = maybe, label = "Maybe", color = GoldDeep)
-
             VerticalDivider(
                 modifier = Modifier.height(28.dp),
                 color = WarmGray100,
-                thickness = 1.dp,
+                thickness = 1.dp
             )
-
             RSVPStatItem(count = pending, label = "Pending", color = WarmGray400)
-
             VerticalDivider(
                 modifier = Modifier.height(28.dp),
                 color = WarmGray100,
-                thickness = 1.dp,
+                thickness = 1.dp
             )
-
-            RSVPStatItem(count = notGoing, label = "Declined", color = WarmGray400)
+            RSVPStatItem(count = notGoing, label = "Declined", color = ErrorRose)
         }
     }
 }
@@ -371,7 +536,7 @@ private fun RSVPStatusSummary(going: Int, maybe: Int, notGoing: Int, pending: In
 private fun RSVPStatItem(count: Int, label: String, color: Color) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text  = count.toString(),
@@ -382,7 +547,7 @@ private fun RSVPStatItem(count: Int, label: String, color: Color) {
             text      = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 10.sp,
-                letterSpacing = 0.2.sp,
+                letterSpacing = 0.2.sp
             ),
             color = WarmGray400,
             textAlign = TextAlign.Center,
@@ -390,184 +555,354 @@ private fun RSVPStatItem(count: Int, label: String, color: Color) {
     }
 }
 
-// ── Section header ────────────────────────────────────────────────────────────
+// ── Unified group card ────────────────────────────────────────────────────────
 
 @Composable
-private fun GuestSectionHeader(
-    label: String,
-    count: Int,
-    accentColor: Color,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.screenHorizontal)
-            .padding(top = Spacing.md, bottom = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Accent dot
-        Box(
-            modifier = Modifier
-                .size(4.dp)
-                .clip(CircleShape)
-                .background(accentColor.copy(alpha = 0.40f)),
-        )
-        Spacer(Modifier.width(8.dp))
-
-        // Section label — tracked small caps
-        Text(
-            text  = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 1.2.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = WarmGray500,
-        )
-        Spacer(Modifier.width(7.dp))
-
-        // Count — subtle
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.labelSmall,
-            color = WarmGray300,
-        )
-        Spacer(Modifier.width(Spacing.sm))
-
-        // Hairline rule — extends to the right edge
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(0.5.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(WarmGray200, WarmGray100, Color.Transparent)
-                    )
-                ),
-        )
-    }
-}
-
-// ── Guest card ────────────────────────────────────────────────────────────────
-
-@Composable
-fun GuestCard(
-    guest: Guest,
-    isCurrentUser: Boolean,
+private fun GuestGroupCard(
+    group: GuestGroup,
+    expanded: Boolean,
+    isCurrentGroup: Boolean,
+    isPrivileged: Boolean,
+    onToggle: () -> Unit,
+    onShare: () -> Unit,
+    onShowQr: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    plusOneCount: Int = 0,
-    plusOneNames: List<String> = emptyList(),
-    tableAssignment: String? = null,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    val arrowAngle by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(280),
+        label = "arrow",
+    )
 
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrentUser) ChampagneLight.copy(alpha = 0.45f) else Color.White,
+            containerColor = if (isCurrentGroup) ChampagneLight else WarmWhite,
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isCurrentUser) 3.dp else 1.dp,
-        ),
-        border = if (isCurrentUser)
-            androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.28f))
-        else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
+            // ── Header row ─────────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (plusOneCount > 0) Modifier.clickable { expanded = !expanded }
-                        else Modifier
-                    )
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = Spacing.cardMd, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // ── Avatar ─────────────────────────────────────────────────
-                AvatarCircle(
-                    name            = guest.name.ifBlank { "?" },
-                    size = 40.dp,
-                    backgroundColor = if (isCurrentUser) ChampagneLight else BlushLight.copy(alpha = 0.7f),
-                    textColor       = if (isCurrentUser) GoldDeep else BlushDeep,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(ChampagneLight),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (group.members.size > 1) Icons.Default.Groups else Icons.Default.Person,
+                        contentDescription = null,
+                        tint = GoldDeep,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.width(Spacing.sm))
 
-                Spacer(Modifier.width(12.dp))
-
-                // ── Name + chips + RSVP badge ──────────────────────────────
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Text(
-                            text     = guest.name.ifBlank { "Anonymous" },
-                            style    = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp,
-                            ),
-                            color    = WarmGray800,
+                            text = group.familyName,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = WarmGray800,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        if (isCurrentUser) YouChip()
-                        if (guest.role == GuestRole.ADMIN || guest.role == GuestRole.COADMIN) {
-                            RoleIndicator(guest.role)
-                        }
+                        if (isCurrentGroup) YouChip()
                     }
-                    Spacer(Modifier.height(3.dp))
-                    RSVPBadge(rsvpStatus = guest.rsvpStatus)
+                    Text(
+                        text = "${group.members.size} ${if (group.members.size == 1) "guest" else "guests"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WarmGray400,
+                    )
                 }
 
+                GroupRsvpBadge(status = groupRsvpSummary(group))
                 Spacer(Modifier.width(Spacing.sm))
 
-                // ── Right column: seating slot + expand chevron ────────────
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    FutureTablePlaceholder(tableAssignment = tableAssignment)
-                    if (plusOneCount > 0) {
-                        Icon(
-                            imageVector = if (expanded) Icons.Default.ExpandLess
-                            else Icons.Default.ExpandMore,
-                            contentDescription = if (expanded) "Collapse" else "Show guests",
-                            tint = WarmGray300,
-                            modifier = Modifier.size(16.dp),
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = WarmGray400,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .rotate(arrowAngle),
+                )
+            }
+
+            // ── Expanded section ───────────────────────────────────────────────
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(280)),
+                exit = shrinkVertically(animationSpec = tween(280)),
+            ) {
+                Column {
+                    HorizontalDivider(thickness = 0.5.dp, color = WarmGray100)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.cardMd, vertical = Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        group.members.forEach { member ->
+                            MemberRsvpRow(member = member)
+                        }
+                    }
+
+                    // ── Admin action chips ─────────────────────────────────────
+                    if (isPrivileged) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = Spacing.cardMd),
+                            thickness = 0.5.dp,
+                            color = WarmGray100,
+                        )
+                        GroupActionRow(
+                            onShare = onShare,
+                            onShowQr = onShowQr,
+                            onEdit = onEdit,
+                            onDelete = onDelete,
                         )
                     }
                 }
-            }
-
-            // ── Plus-one section (accordion) ───────────────────────────────
-            AnimatedVisibility(
-                visible = expanded && plusOneCount > 0,
-                enter   = expandVertically(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(),
-                exit    = shrinkVertically() + fadeOut(),
-            ) {
-                PlusOneSection(
-                    count    = plusOneCount,
-                    names    = plusOneNames,
-                    modifier = Modifier.padding(
-                        start = 66.dp,
-                        end = 14.dp,
-                        bottom = 12.dp,
-                    ),
-                )
             }
         }
     }
 }
 
-// ── RSVP badge ────────────────────────────────────────────────────────────────
+// ── Individual guest card (no group) ─────────────────────────────────────────
+
+@Composable
+private fun IndividualGuestCard(
+    guest: Guest,
+    isCurrentUser: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isCurrentUser) ChampagneLight else WarmWhite,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.cardMd, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AvatarCircle(
+                name = guest.name.ifBlank { "?" },
+                size = 40.dp,
+                backgroundColor = if (isCurrentUser) ChampagneLight else BlushLight.copy(alpha = 0.7f),
+                textColor = if (isCurrentUser) GoldDeep else BlushDeep,
+            )
+            Spacer(Modifier.width(Spacing.sm))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = guest.name.ifBlank { "Anonymous" },
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = WarmGray800,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (isCurrentUser) YouChip()
+                    if (guest.role == GuestRole.ADMIN || guest.role == GuestRole.COADMIN) {
+                        RoleIndicator(guest.role)
+                    }
+                }
+                Spacer(Modifier.height(3.dp))
+                RSVPBadge(rsvpStatus = guest.rsvpStatus)
+            }
+        }
+    }
+}
+
+// ── Member row with RSVP ──────────────────────────────────────────────────────
+
+@Composable
+private fun MemberRsvpRow(member: GuestMember) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(if (member.role == MemberRole.CHILD) BlushDeep else Gold),
+        )
+        Text(
+            text = member.name.ifBlank { "Guest" },
+            style = MaterialTheme.typography.bodySmall,
+            color = WarmGray700,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = member.role,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+            color = WarmGray400,
+        )
+        RSVPBadge(rsvpStatus = member.rsvpStatus)
+    }
+}
+
+// ── Admin action row ──────────────────────────────────────────────────────────
+
+@Composable
+private fun GroupActionRow(
+    onShare: () -> Unit,
+    onShowQr: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ActionChip(
+            label = "Share",
+            icon = Icons.Default.Share,
+            tint = GoldDeep,
+            bg = ChampagneLight,
+            onClick = onShare,
+            modifier = Modifier.weight(1f),
+        )
+        ActionChip(
+            label = "QR Code",
+            icon = Icons.Default.QrCode,
+            tint = GoldDeep,
+            bg = GoldLight.copy(alpha = 0.4f),
+            onClick = onShowQr,
+            modifier = Modifier.weight(1f),
+        )
+        ActionChip(
+            label = "Edit",
+            icon = Icons.Default.Edit,
+            tint = WarmGray600,
+            bg = WarmGray50,
+            onClick = onEdit,
+            modifier = Modifier.weight(1f),
+        )
+        // Delete — icon only, red tint
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(ErrorRoseLight)
+                .clickable(onClick = onDelete),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Delete",
+                tint = ErrorRose,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionChip(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    bg: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, Modifier.size(13.dp), tint)
+        Spacer(Modifier.width(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = tint,
+        )
+    }
+}
+
+// ── Group RSVP summary badge ──────────────────────────────────────────────────
+
+private fun groupRsvpSummary(group: GuestGroup): String? {
+    val statuses = group.members.map { it.rsvpStatus }
+    if (statuses.isEmpty()) return null
+    val going = statuses.count { it == RSVPStatus.GOING }
+    val notGoing = statuses.count { it == RSVPStatus.NOT_GOING }
+    val maybe = statuses.count { it == RSVPStatus.MAYBE }
+    return when {
+        statuses.all { it.isNullOrBlank() } -> null
+        going == statuses.size -> RSVPStatus.GOING
+        notGoing == statuses.size -> RSVPStatus.NOT_GOING
+        maybe == statuses.size -> RSVPStatus.MAYBE
+        going > 0 -> "partial"
+        else -> null
+    }
+}
+
+@Composable
+private fun GroupRsvpBadge(status: String?) {
+    val (label, bg, fg) = when (status) {
+        RSVPStatus.GOING -> Triple("All Going", Color(0xFFE8F5E8), SuccessSage)
+        RSVPStatus.NOT_GOING -> Triple("Declined", ErrorRoseLight, ErrorRose)
+        RSVPStatus.MAYBE -> Triple("Maybe", GoldLight.copy(alpha = 0.4f), GoldDeep)
+        "partial" -> Triple("Partial", ChampagneLight, GoldDeep)
+        else -> Triple("Pending", WarmGray100, WarmGray500)
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50.dp))
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            color = fg,
+        )
+    }
+}
+
+// ── RSVP badge (per member/guest) ─────────────────────────────────────────────
 
 @Composable
 fun RSVPBadge(rsvpStatus: String?, modifier: Modifier = Modifier) {
     val normalised = rsvpStatus?.takeIf { it.isNotBlank() }
-
     val label = when (normalised) {
         RSVPStatus.GOING     -> "Attending"
         RSVPStatus.MAYBE     -> "Maybe"
@@ -575,18 +910,17 @@ fun RSVPBadge(rsvpStatus: String?, modifier: Modifier = Modifier) {
         else                 -> "Awaiting Reply"
     }
     val textColor = when (normalised) {
-        RSVPStatus.GOING     -> BlushDeep
+        RSVPStatus.GOING -> SuccessSage
         RSVPStatus.MAYBE     -> GoldDeep
-        RSVPStatus.NOT_GOING -> WarmGray500
+        RSVPStatus.NOT_GOING -> ErrorRose
         else -> WarmGray300
     }
     val bgColor = when (normalised) {
-        RSVPStatus.GOING -> BlushLight.copy(alpha = 0.55f)
-        RSVPStatus.MAYBE -> ChampagneLight.copy(alpha = 0.70f)
-        RSVPStatus.NOT_GOING -> WarmGray100
+        RSVPStatus.GOING -> Color(0xFFE8F5E8)
+        RSVPStatus.MAYBE -> GoldLight.copy(alpha = 0.4f)
+        RSVPStatus.NOT_GOING -> ErrorRoseLight
         else                 -> WarmGray50
     }
-
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
@@ -597,97 +931,10 @@ fun RSVPBadge(rsvpStatus: String?, modifier: Modifier = Modifier) {
             text  = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 10.sp,
-                letterSpacing = 0.1.sp,
+                letterSpacing = 0.1.sp
             ),
             color = textColor,
         )
-    }
-}
-
-// ── Plus-one section ──────────────────────────────────────────────────────────
-
-@Composable
-fun PlusOneSection(
-    count: Int,
-    names: List<String>,
-    modifier: Modifier = Modifier,
-) {
-    if (count == 0) return
-    Column(modifier = modifier) {
-        repeat(count) { i ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(18.dp)
-                        .background(WarmGray100),
-                )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(WarmGray50),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = WarmGray300,
-                        modifier = Modifier.size(13.dp),
-                    )
-                }
-                Text(
-                    text  = names.getOrElse(i) { "Guest ${i + 1}" },
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = WarmGray500,
-                )
-            }
-        }
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = "+ $count joining",
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.sp,
-                letterSpacing = 0.4.sp
-            ),
-            color = WarmGray300,
-            modifier = Modifier.padding(start = 13.dp),
-        )
-    }
-}
-
-// ── Future seating placeholder ────────────────────────────────────────────────
-
-@Composable
-fun FutureTablePlaceholder(
-    tableAssignment: String?,
-    modifier: Modifier = Modifier,
-) {
-    if (tableAssignment != null) {
-        Column(modifier = modifier, horizontalAlignment = Alignment.End) {
-            Text(
-                text  = tableAssignment,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = Gold.copy(alpha = 0.80f),
-            )
-            Text(
-                text  = "Table",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 9.sp,
-                    letterSpacing = 0.4.sp,
-                ),
-                color = WarmGray300,
-            )
-        }
-    } else {
-        // Reserved space — invisible to users but preserves card layout alignment
-        Spacer(modifier = modifier.size(width = 20.dp, height = 14.dp))
     }
 }
 
@@ -705,7 +952,7 @@ private fun YouChip() {
             text  = "You",
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 10.sp,
+                fontSize = 10.sp
             ),
             color = GoldDeep,
         )
@@ -731,7 +978,7 @@ private fun RoleIndicator(role: String) {
             text  = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
+                fontSize = 10.sp
             ),
             color = color,
         )
@@ -759,21 +1006,21 @@ private fun EmptyGuestState(modifier: Modifier = Modifier) {
                 imageVector = Icons.Default.PeopleAlt,
                 contentDescription = null,
                 tint = Gold.copy(alpha = 0.45f),
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(28.dp)
             )
         }
         Spacer(Modifier.height(Spacing.md))
         Text(
-            text      = "No guests yet",
+            text = "No guests yet",
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Light),
             color = WarmGray700,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Center
         )
         Text(
-            text      = "Guests will appear here\nonce they join the wedding",
-            style     = MaterialTheme.typography.bodyMedium,
+            text = "Guests will appear here\nonce they join the wedding",
+            style = MaterialTheme.typography.bodyMedium,
             color = WarmGray400,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -786,12 +1033,585 @@ private fun GuestListFlorals() {
         drawCircle(
             color = Color(0xFFEDD9B8).copy(alpha = 0.15f),
             radius = 80.dp.toPx(),
-            center = Offset(-15.dp.toPx(), 20.dp.toPx()),
+            center = Offset(-15.dp.toPx(), 20.dp.toPx())
         )
         drawCircle(
             color = Color(0xFFEDD9B8).copy(alpha = 0.12f),
             radius = 65.dp.toPx(),
-            center = Offset(size.width, size.height - 50.dp.toPx()),
+            center = Offset(size.width, size.height - 50.dp.toPx())
         )
+    }
+}
+
+// ── Add / Edit sheet ──────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddEditGroupSheet(
+    draft: GroupDraft,
+    isEditing: Boolean,
+    actionState: GroupActionState,
+    onFamilyNameChange: (String) -> Unit,
+    onMemberNameChange: (Int, String) -> Unit,
+    onMemberRoleChange: (Int, String) -> Unit,
+    onMemberPlusOneChange: (Int, Boolean) -> Unit,
+    onAddMember: () -> Unit,
+    onRemoveMember: (Int) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Ivory,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.screenHorizontal)
+                .navigationBarsPadding(),
+        ) {
+            Text(
+                text = if (isEditing) "Edit Group" else "Add Guests",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray800,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (isEditing) "Update the group details below" else "Add a family, couple, or individual",
+                style = MaterialTheme.typography.bodySmall,
+                color = WarmGray400,
+            )
+
+            Spacer(Modifier.height(Spacing.lg))
+
+            Text(
+                "Group / Family Name",
+                style = MaterialTheme.typography.labelMedium,
+                color = WarmGray600
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = draft.familyName,
+                onValueChange = onFamilyNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("e.g. The Johnson Family", color = WarmGray300) },
+                shape = RoundedCornerShape(14.dp),
+                colors = elegantTextFieldColors(),
+                singleLine = true,
+            )
+
+            Spacer(Modifier.height(Spacing.lg))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Members",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = WarmGray600,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = onAddMember,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Icon(Icons.Default.PersonAddAlt, null, Modifier.size(14.dp), Gold)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Add", style = MaterialTheme.typography.labelSmall, color = Gold)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            draft.members.forEachIndexed { index, member ->
+                MemberInputRow(
+                    index = index,
+                    member = member,
+                    canRemove = draft.members.size > 1,
+                    onNameChange = { onMemberNameChange(index, it) },
+                    onRoleChange = { onMemberRoleChange(index, it) },
+                    onPlusOne = { onMemberPlusOneChange(index, it) },
+                    onRemove = { onRemoveMember(index) },
+                )
+                if (index < draft.members.lastIndex) Spacer(Modifier.height(10.dp))
+            }
+
+            if (actionState is GroupActionState.Error) {
+                Spacer(Modifier.height(Spacing.sm))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(ErrorRoseLight)
+                        .padding(Spacing.sm),
+                ) {
+                    Text(
+                        actionState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ErrorRose
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(Spacing.lg))
+
+            Button(
+                onClick = onSave,
+                enabled = actionState !is GroupActionState.Saving && draft.familyName.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Gold,
+                    contentColor = Color.White,
+                    disabledContainerColor = WarmGray200,
+                ),
+            ) {
+                if (actionState is GroupActionState.Saving) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        if (isEditing) "Save Changes" else "Create Group",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(Spacing.md))
+        }
+    }
+}
+
+// ── Member input row ──────────────────────────────────────────────────────────
+
+@Composable
+private fun MemberInputRow(
+    index: Int,
+    member: MemberDraft,
+    canRemove: Boolean,
+    onNameChange: (String) -> Unit,
+    onRoleChange: (String) -> Unit,
+    onPlusOne: (Boolean) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(WarmGray50)
+            .padding(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = member.name,
+                onValueChange = onNameChange,
+                modifier = Modifier.weight(1f),
+                placeholder = {
+                    Text(
+                        "Full name",
+                        color = WarmGray300,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                },
+                shape = RoundedCornerShape(10.dp),
+                colors = elegantTextFieldColors(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall,
+            )
+            if (canRemove) {
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(ErrorRoseLight)
+                        .clickable(onClick = onRemove),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Close, null, Modifier.size(14.dp), ErrorRose)
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            RoleToggle(
+                selected = member.role == MemberRole.ADULT,
+                label = "Adult",
+                onClick = { onRoleChange(MemberRole.ADULT) },
+            )
+            RoleToggle(
+                selected = member.role == MemberRole.CHILD,
+                label = "Child",
+                onClick = { onRoleChange(MemberRole.CHILD) },
+            )
+            Spacer(Modifier.weight(1f))
+            if (member.role == MemberRole.ADULT) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50.dp))
+                        .background(if (member.plusOneAllowed) BlushLight else WarmGray100)
+                        .clickable { onPlusOne(!member.plusOneAllowed) }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "+1",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (member.plusOneAllowed) BlushDeep else WarmGray400,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Role toggle ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun RoleToggle(selected: Boolean, label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50.dp))
+            .background(if (selected) Gold else WarmGray100)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) Color.White else WarmGray500,
+        )
+    }
+}
+
+// ── QR code dialog ────────────────────────────────────────────────────────────
+
+@Composable
+private fun QrCodeDialog(
+    group: GuestGroup,
+    onDismiss: () -> Unit,
+    onShare: () -> Unit,
+) {
+    val qrBitmap = rememberQrBitmap(group.invitationLink)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                modifier = Modifier
+                    .padding(Spacing.xl)
+                    .clickable(enabled = false) {},
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(containerColor = Ivory),
+                elevation = CardDefaults.cardElevation(8.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.lg),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(WarmGray100)
+                                .clickable(onClick = onDismiss),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.Close, null, Modifier.size(16.dp), WarmGray500)
+                        }
+                    }
+
+                    Icon(
+                        Icons.Default.Favorite,
+                        null,
+                        Modifier.size(20.dp),
+                        Gold.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = group.familyName,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = WarmGray800,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "${group.members.size} ${if (group.members.size == 1) "guest" else "guests"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WarmGray400,
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(220.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .border(1.dp, WarmGray100, RoundedCornerShape(16.dp))
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (qrBitmap != null) {
+                            Image(
+                                bitmap = qrBitmap.asImageBitmap(),
+                                contentDescription = "Invitation QR",
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            CircularProgressIndicator(
+                                color = Gold,
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(WarmGray50)
+                            .padding(horizontal = Spacing.md, vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = group.invitationLink,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = GoldDeep,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+
+                    Text(
+                        text = "Token: ${group.inviteToken}",
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
+                        color = WarmGray400,
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Button(
+                        onClick = onShare,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Gold,
+                            contentColor = Color.White
+                        ),
+                    ) {
+                        Icon(Icons.Default.Share, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Share Invitation", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Delete confirm dialog ──────────────────────────────────────────────────────
+
+@Composable
+private fun DeleteConfirmDialog(
+    groupName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Ivory,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                "Remove group?",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray800,
+            )
+        },
+        text = {
+            Text(
+                "\"$groupName\" and all their invitation details will be permanently removed.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = WarmGray500,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Remove", color = ErrorRose, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = WarmGray500)
+            }
+        },
+    )
+}
+
+// ── QR bitmap helper ──────────────────────────────────────────────────────────
+
+@Composable
+private fun rememberQrBitmap(content: String, size: Int = 512): Bitmap? =
+    remember(content, size) {
+        runCatching {
+            val hints = mapOf(EncodeHintType.MARGIN to 1)
+            val writer = QRCodeWriter()
+            val bits = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
+            Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).also { bmp ->
+                for (x in 0 until size) {
+                    for (y in 0 until size) {
+                        bmp.setPixel(
+                            x,
+                            y,
+                            if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                        )
+                    }
+                }
+            }
+        }.getOrNull()
+    }
+
+// ── Sharing helpers ───────────────────────────────────────────────────────────
+
+@Composable
+private fun elegantTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Gold,
+    unfocusedBorderColor = WarmGray200,
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White,
+    cursorColor = Gold,
+    focusedTextColor = WarmGray800,
+    unfocusedTextColor = WarmGray700,
+)
+
+private fun shareInvitation(context: Context, group: GuestGroup) {
+    val memberNames = group.members
+        .filter { it.role == MemberRole.ADULT }
+        .joinToString(" & ") { it.name.substringBefore(" ") }
+        .ifBlank { group.familyName }
+
+    val text = buildString {
+        appendLine("💛 You're invited!")
+        appendLine()
+        appendLine("Dear $memberNames,")
+        appendLine("We would love to celebrate our special day with you.")
+        appendLine()
+        appendLine("Use your personal invitation link to RSVP:")
+        appendLine(group.invitationLink)
+        appendLine()
+        appendLine("Or enter code: ${group.inviteToken}")
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(
+        Intent.createChooser(
+            intent,
+            "Wedding Invitation for ${group.familyName}"
+        )
+    )
+}
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "Guest List – Groups"
+)
+@Composable
+private fun GuestListGroupsPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        // Preview scaffold (no viewmodel)
+        val groups = mapOf(
+            "grp1" to GuestGroup(
+                id = "grp1", weddingId = "w1", familyName = "Walker Family",
+                members = listOf(
+                    GuestMember("Sophie Walker", MemberRole.ADULT, rsvpStatus = RSVPStatus.GOING),
+                    GuestMember("James Walker", MemberRole.ADULT, rsvpStatus = RSVPStatus.MAYBE),
+                    GuestMember("Lily Walker", MemberRole.CHILD, rsvpStatus = null),
+                ),
+            ),
+            "grp2" to GuestGroup(
+                id = "grp2", weddingId = "w1", familyName = "Brown Family",
+                members = listOf(
+                    GuestMember("Oliver Brown", MemberRole.ADULT, rsvpStatus = RSVPStatus.GOING),
+                    GuestMember("Amelia Brown", MemberRole.ADULT, rsvpStatus = RSVPStatus.GOING),
+                ),
+            ),
+        )
+        val sortedGroups = groups.values.sortedBy { it.familyName.lowercase() }
+        val allStatuses = sortedGroups.flatMap { g -> g.members.map { it.rsvpStatus } }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            ChampagneLight.copy(alpha = 0.28f),
+                            Ivory,
+                            Ivory,
+                            Ivory
+                        )
+                    )
+                )
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item { GuestListHeader(guestCount = allStatuses.size) }
+                item {
+                    RSVPStatusSummary(
+                        going = allStatuses.count { it == RSVPStatus.GOING },
+                        maybe = allStatuses.count { it == RSVPStatus.MAYBE },
+                        notGoing = allStatuses.count { it == RSVPStatus.NOT_GOING },
+                        pending = allStatuses.count { it.isNullOrBlank() },
+                    )
+                }
+                item { SectionHeader(label = "Family Groups", count = sortedGroups.size) }
+                items(sortedGroups, key = { it.id }) { group ->
+                    GuestGroupCard(
+                        group = group,
+                        expanded = group.id == "grp1",
+                        isCurrentGroup = group.id == "grp1",
+                        isPrivileged = true,
+                        onToggle = {},
+                        onShare = {},
+                        onShowQr = {},
+                        onEdit = {},
+                        onDelete = {},
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp),
+                    )
+                }
+            }
+        }
     }
 }

@@ -445,3 +445,47 @@ private fun formatTimestamp(millis: Long): String {
     if (millis <= 0L) return ""
     return SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(millis))
 }
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    name = "Notification Card – Announcement"
+)
+@Composable
+private fun NotificationCardAnnouncementPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        NotificationCard(
+            notification = com.wednowapp.wednow.domain.model.AppNotification(
+                id = "1", type = com.wednowapp.wednow.domain.model.NotificationType.ANNOUNCEMENT,
+                senderName = "Sophie & James",
+                title = "Ceremony Update 💍",
+                body = "The ceremony has moved to the garden terrace. Please arrive by 11 AM.",
+                createdAt = System.currentTimeMillis() - 3_600_000,
+            ),
+            isRead = false,
+            onClick = {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    name = "Notification Card – Photo Like"
+)
+@Composable
+private fun NotificationCardPhotoLikePreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        NotificationCard(
+            notification = com.wednowapp.wednow.domain.model.AppNotification(
+                id = "2", type = com.wednowapp.wednow.domain.model.NotificationType.PHOTO_LIKE,
+                senderName = "Emma Davis",
+                title = "Emma liked your photo",
+                body = "Your photo from the ceremony received a like.",
+                createdAt = System.currentTimeMillis() - 7_200_000,
+            ),
+            isRead = true,
+            onClick = {},
+        )
+    }
+}

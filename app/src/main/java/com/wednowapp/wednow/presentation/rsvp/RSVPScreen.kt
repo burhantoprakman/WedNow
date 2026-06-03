@@ -1,6 +1,9 @@
 package com.wednowapp.wednow.presentation.rsvp
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,12 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -48,8 +55,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.wednowapp.wednow.R
+import com.wednowapp.wednow.domain.model.GuestMember
+import com.wednowapp.wednow.domain.model.MemberRole
 import com.wednowapp.wednow.domain.model.RSVPStatus
-import com.wednowapp.wednow.ui.components.RsvpOptionCard
 import com.wednowapp.wednow.ui.theme.BlushDeep
 import com.wednowapp.wednow.ui.theme.BlushLight
 import com.wednowapp.wednow.ui.theme.ChampagneLight
@@ -60,7 +68,9 @@ import com.wednowapp.wednow.ui.theme.GoldDeep
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
 import com.wednowapp.wednow.ui.theme.WarmGray100
+import com.wednowapp.wednow.ui.theme.WarmGray300
 import com.wednowapp.wednow.ui.theme.WarmGray400
+import com.wednowapp.wednow.ui.theme.WarmGray50
 import com.wednowapp.wednow.ui.theme.WarmGray500
 import com.wednowapp.wednow.ui.theme.WarmGray600
 import com.wednowapp.wednow.ui.theme.WarmGray800
@@ -84,6 +94,7 @@ fun RSVPScreen(
     viewModel: RSVPViewModel = hiltViewModel(),
 ) {
     val currentGuest by viewModel.currentGuest.collectAsState()
+    val currentGroup by viewModel.currentGroup.collectAsState()
     val submitState by viewModel.submitState.collectAsState()
     val snackbarState = remember { SnackbarHostState() }
     val isLoading = submitState == RsvpSubmitState.Loading
@@ -91,7 +102,7 @@ fun RSVPScreen(
     LaunchedEffect(submitState) {
         when (val s = submitState) {
             is RsvpSubmitState.Success -> {
-                snackbarState.showSnackbar("RSVP saved! 🎉")
+                snackbarState.showSnackbar("RSVP saved!")
                 viewModel.resetSubmitState()
             }
             is RsvpSubmitState.Error -> {
@@ -102,11 +113,12 @@ fun RSVPScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Ivory),
-    ) {
+    val hasFamily = currentGroup != null && currentGroup!!.members.isNotEmpty()
+
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(Ivory)) {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -116,13 +128,8 @@ fun RSVPScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(BlushLight, Ivory)
-                        )
-                    ),
+                    .background(Brush.verticalGradient(listOf(BlushLight, Ivory))),
             ) {
-                // Back button
                 Box(
                     modifier = Modifier
                         .statusBarsPadding()
@@ -135,56 +142,23 @@ fun RSVPScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = WarmGray600,
                         modifier = Modifier.size(18.dp),
                     )
                 }
 
-                // Title content
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(top = 64.dp, bottom = 40.dp)
+                        .padding(top = 64.dp, bottom = 36.dp)
                         .padding(horizontal = Spacing.screenHorizontal),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // Ornament line
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .height(0.5.dp)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(Color.Transparent, Gold.copy(alpha = 0.35f))
-                                    )
-                                )
-                        )
-                        Text(
-                            text = "  ♡  ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Gold.copy(alpha = 0.55f),
-                        )
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .height(0.5.dp)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(Gold.copy(alpha = 0.35f), Color.Transparent)
-                                    )
-                                )
-                        )
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-
+                    OrnamentLine()
+                    Spacer(Modifier.height(18.dp))
                     Text(
                         text = "Will you be there?",
                         style = TextStyle(
@@ -195,110 +169,84 @@ fun RSVPScreen(
                         ),
                         textAlign = TextAlign.Center,
                     )
-
-                    Spacer(Modifier.height(8.dp))
-
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "Let the couple know if you can make it.",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontStyle = FontStyle.Italic,
-                        ),
+                        text = if (hasFamily) "Set attendance for each family member."
+                        else "Let the couple know if you can make it.",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                         color = WarmGray500,
                         textAlign = TextAlign.Center,
                     )
-
                     currentGuest?.rsvpUpdatedAt?.let { ts ->
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(8.dp))
                         Text(
                             text = "Last updated ${formatTimestamp(ts)}",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 0.5.sp,
                                 fontSize = 10.sp,
+                                letterSpacing = 0.5.sp
                             ),
-                            color = Gold.copy(alpha = 0.75f),
+                            color = Gold.copy(alpha = 0.7f),
                         )
                     }
                 }
             }
 
-            // ── RSVP option cards ─────────────────────────────────────────────
+            // ── Body ──────────────────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(top = Spacing.lg, bottom = Spacing.xxl),
+                    .padding(top = Spacing.md, bottom = Spacing.xxl),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                if (currentGuest == null && submitState !is RsvpSubmitState.Error) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            color = Gold,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(28.dp),
-                        )
-                    }
-                } else {
-                    val selected = currentGuest?.rsvpStatus
-
-                    // Going
-                    RsvpOptionCard(
-                        icon = Icons.Default.CheckCircle,
-                        label = "I'll be there!",
-                        description = "Confirm your attendance",
-                        selected = selected == RSVPStatus.GOING,
-                        onClick = { if (!isLoading) viewModel.submit(RSVPStatus.GOING) },
-                        selectedContainerColor = ChampagneLight,
-                        selectedContentColor = GoldDeep,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    // Not going
-                    RsvpOptionCard(
-                        icon = Icons.Default.Cancel,
-                        label = "Can't make it",
-                        description = "You won't be attending",
-                        selected = selected == RSVPStatus.NOT_GOING,
-                        onClick = { if (!isLoading) viewModel.submit(RSVPStatus.NOT_GOING) },
-                        selectedContainerColor = ErrorRoseLight,
-                        selectedContentColor = ErrorRose,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    // Maybe
-                    RsvpOptionCard(
-                        icon = Icons.Default.HelpOutline,
-                        label = "Maybe",
-                        description = "Still deciding…",
-                        selected = selected == RSVPStatus.MAYBE,
-                        onClick = { if (!isLoading) viewModel.submit(RSVPStatus.MAYBE) },
-                        selectedContainerColor = BlushLight,
-                        selectedContentColor = BlushDeep,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
-                    if (isLoading) {
-                        Spacer(Modifier.height(Spacing.sm))
+                when {
+                    currentGuest == null && submitState !is RsvpSubmitState.Error -> {
                         Box(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             CircularProgressIndicator(
                                 color = Gold,
                                 strokeWidth = 2.dp,
-                                modifier = Modifier.size(26.dp),
+                                modifier = Modifier.size(26.dp)
                             )
                         }
+                    }
+
+                    hasFamily -> {
+                        currentGroup!!.members.forEachIndexed { index, member ->
+                            FamilyMemberCard(
+                                member = member,
+                                isLoading = isLoading,
+                                onSelect = { status -> viewModel.submitMemberRsvp(index, status) },
+                            )
+                        }
+                        if (isLoading) {
+                            Spacer(Modifier.height(Spacing.sm))
+                            Box(Modifier.fillMaxWidth(), Alignment.Center) {
+                                CircularProgressIndicator(
+                                    color = Gold,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    else -> {
+                        val selected = currentGuest?.rsvpStatus
+                        SelfRsvpCard(
+                            selected = selected,
+                            isLoading = isLoading,
+                            onSelect = { status -> if (!isLoading) viewModel.submit(status) },
+                        )
                     }
                 }
             }
         }
 
-        // ── Snackbar ──────────────────────────────────────────────────────────
         SnackbarHost(
             hostState = snackbarState,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -306,5 +254,286 @@ fun RSVPScreen(
     }
 }
 
+// ── Self RSVP card ────────────────────────────────────────────────────────────
+
+@Composable
+private fun SelfRsvpCard(
+    selected: String?,
+    isLoading: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Your Response",
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
+                color = WarmGray400,
+            )
+            RsvpChoiceRow(
+                selected = selected,
+                isLoading = isLoading,
+                onSelect = onSelect,
+            )
+        }
+    }
+}
+
+// ── Family member card ────────────────────────────────────────────────────────
+
+@Composable
+private fun FamilyMemberCard(
+    member: GuestMember,
+    isLoading: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    val isChild = member.role == MemberRole.CHILD
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            // ── Identity row ──────────────────────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(if (isChild) BlushLight else ChampagneLight),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = member.name.take(1).uppercase().ifBlank { "?" },
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (isChild) BlushDeep else GoldDeep,
+                    )
+                }
+                Text(
+                    text = member.name.ifBlank { "Guest" },
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = WarmGray800,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (isChild) BlushLight else ChampagneLight)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = member.role,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = if (isChild) BlushDeep else GoldDeep,
+                    )
+                }
+            }
+
+            // ── Choice row ────────────────────────────────────────────────────
+            RsvpChoiceRow(
+                selected = member.rsvpStatus,
+                isLoading = isLoading,
+                onSelect = onSelect,
+            )
+        }
+    }
+}
+
+// ── Shared 3-pill row ─────────────────────────────────────────────────────────
+
+@Composable
+private fun RsvpChoiceRow(
+    selected: String?,
+    isLoading: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        RsvpPill(
+            label = "Going",
+            icon = Icons.Default.CheckCircle,
+            selected = selected == RSVPStatus.GOING,
+            selectedColor = GoldDeep,
+            selectedBg = ChampagneLight,
+            onClick = { if (!isLoading) onSelect(RSVPStatus.GOING) },
+            modifier = Modifier.weight(1f),
+        )
+        RsvpPill(
+            label = "Maybe",
+            icon = Icons.Default.HelpOutline,
+            selected = selected == RSVPStatus.MAYBE,
+            selectedColor = BlushDeep,
+            selectedBg = BlushLight,
+            onClick = { if (!isLoading) onSelect(RSVPStatus.MAYBE) },
+            modifier = Modifier.weight(1f),
+        )
+        RsvpPill(
+            label = "Can't go",
+            icon = Icons.Default.Cancel,
+            selected = selected == RSVPStatus.NOT_GOING,
+            selectedColor = ErrorRose,
+            selectedBg = ErrorRoseLight,
+            onClick = { if (!isLoading) onSelect(RSVPStatus.NOT_GOING) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun RsvpPill(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    selectedColor: Color,
+    selectedBg: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bg by animateColorAsState(
+        targetValue = if (selected) selectedBg else WarmGray50,
+        animationSpec = tween(180),
+        label = "pillBg",
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .border(
+                width = if (selected) 1.dp else 0.dp,
+                color = if (selected) selectedColor.copy(alpha = 0.30f) else Color.Transparent,
+                shape = RoundedCornerShape(14.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = if (selected) selectedColor else WarmGray300,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                color = if (selected) selectedColor else WarmGray400,
+            )
+        }
+    }
+}
+
+// ── Ornament ──────────────────────────────────────────────────────────────────
+
+@Composable
+private fun OrnamentLine() {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Gold.copy(alpha = 0.35f)
+                        )
+                    )
+                )
+        )
+        Text("  ♡  ", style = MaterialTheme.typography.labelSmall, color = Gold.copy(alpha = 0.55f))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Gold.copy(alpha = 0.35f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+    }
+}
+
 private fun formatTimestamp(millis: Long): String =
     SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault()).format(Date(millis))
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "RSVP – Self"
+)
+@Composable
+private fun RsvpSelfPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Ivory)
+                .padding(Spacing.screenHorizontal)
+                .padding(top = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            SelfRsvpCard(selected = RSVPStatus.GOING, isLoading = false, onSelect = {})
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "RSVP – Family of 3"
+)
+@Composable
+private fun RsvpFamilyPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Ivory)
+                .padding(Spacing.screenHorizontal)
+                .padding(top = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            listOf(
+                GuestMember("Sophie Walker", MemberRole.ADULT, rsvpStatus = RSVPStatus.GOING),
+                GuestMember("James Walker", MemberRole.ADULT, rsvpStatus = RSVPStatus.MAYBE),
+                GuestMember("Lily Walker", MemberRole.CHILD, rsvpStatus = null),
+            ).forEachIndexed { i, member ->
+                FamilyMemberCard(member = member, isLoading = false, onSelect = {})
+            }
+        }
+    }
+}

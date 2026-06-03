@@ -83,14 +83,14 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
-import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.wednowapp.wednow.domain.model.GuestGroup
 import com.wednowapp.wednow.domain.model.MemberRole
 import com.wednowapp.wednow.domain.model.RSVPStatus
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.wednowapp.wednow.ui.theme.BlushDeep
 import com.wednowapp.wednow.ui.theme.BlushLight
 import com.wednowapp.wednow.ui.theme.ChampagneLight
@@ -1371,4 +1371,67 @@ private fun shareText(context: Context, text: String, title: String) {
         putExtra(Intent.EXTRA_TEXT, text)
     }
     context.startActivity(Intent.createChooser(intent, title))
+}
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    name = "Guest Group Card – Expanded"
+)
+@androidx.compose.runtime.Composable
+private fun GuestGroupCardExpandedPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        androidx.compose.foundation.layout.Column(
+            modifier = androidx.compose.ui.Modifier.padding(16.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            GuestGroupCard(
+                group = com.wednowapp.wednow.domain.model.GuestGroup(
+                    id = "g1", weddingId = "w1",
+                    familyName = "Walker Family",
+                    inviteToken = "WLK001",
+                    members = listOf(
+                        com.wednowapp.wednow.domain.model.GuestMember(
+                            "Sophie Walker",
+                            com.wednowapp.wednow.domain.model.MemberRole.ADULT,
+                            rsvpStatus = "going"
+                        ),
+                        com.wednowapp.wednow.domain.model.GuestMember(
+                            "James Walker",
+                            com.wednowapp.wednow.domain.model.MemberRole.ADULT,
+                            rsvpStatus = "maybe"
+                        ),
+                        com.wednowapp.wednow.domain.model.GuestMember(
+                            "Lily Walker",
+                            com.wednowapp.wednow.domain.model.MemberRole.CHILD,
+                            rsvpStatus = null
+                        ),
+                    ),
+                    rsvpStatus = "going",
+                ),
+                expanded = true,
+                isAdmin = true,
+                onToggle = {}, onShare = {}, onShowQr = {}, onEdit = {}, onDelete = {},
+            )
+            GuestGroupCard(
+                group = com.wednowapp.wednow.domain.model.GuestGroup(
+                    id = "g2", weddingId = "w1",
+                    familyName = "Davis Family",
+                    inviteToken = "DVS002",
+                    members = listOf(
+                        com.wednowapp.wednow.domain.model.GuestMember(
+                            "Emma Davis",
+                            com.wednowapp.wednow.domain.model.MemberRole.ADULT,
+                            rsvpStatus = "not_going"
+                        ),
+                    ),
+                    rsvpStatus = "not_going",
+                ),
+                expanded = false,
+                isAdmin = true,
+                onToggle = {}, onShare = {}, onShowQr = {}, onEdit = {}, onDelete = {},
+            )
+        }
+    }
 }

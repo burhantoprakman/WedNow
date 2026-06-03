@@ -5,7 +5,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -297,7 +302,8 @@ private fun GuestbookContent(
                         isEmpty = postList.isEmpty(),
                         isLoading = posts == null,
                         pageOffset = pageOffset,
-                        modifier   = Modifier.fillMaxSize(),
+                        onWrite = { if (isSignedIn) showWriteSheet = true else onRequestWrite() },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     val post = postList[page - 1]
@@ -366,11 +372,12 @@ private fun GuestbookTopBar(
             .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Back button — matches style used across other screens
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color.White)
+                .background(WarmGray50)
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
@@ -382,40 +389,20 @@ private fun GuestbookTopBar(
             )
         }
 
+        // Left-aligned title + memory count
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = Spacing.md),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(start = Spacing.md),
         ) {
-            Text(
-                text  = "Wedding Guestbook",
-                style = MaterialTheme.typography.headlineSmall,
-                color = WarmGray800,
-            )
+
             if (totalMemories > 0) {
                 Text(
-                    text  = "$totalMemories memories",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                    text = "$totalMemories ${if (totalMemories == 1) "memory" else "memories"}",
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
                     color = WarmGray400,
                 )
             }
-        }
-
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Gold)
-                .clickable(onClick = onWrite),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "Write a memory",
-                modifier = Modifier.size(18.dp),
-                tint = Color.White,
-            )
         }
     }
 }
@@ -447,6 +434,7 @@ private fun BookCoverPage(
     isEmpty: Boolean,
     isLoading: Boolean,
     pageOffset: Float,
+    onWrite: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val serifFamily = MaterialTheme.typography.displayLarge.fontFamily
@@ -542,21 +530,14 @@ private fun BookCoverPage(
                         modifier = Modifier.size(22.dp),
                     )
 
-                    isEmpty -> Text(
-                        text = "Be the first to\nleave a memory",
-                        style = TextStyle(
-                            fontFamily = serifFamily,
-                            fontStyle = FontStyle.Italic,
-                            fontSize = 15.sp,
-                            lineHeight = 24.sp,
-                            color = WarmGray500,
-                        ),
-                        textAlign = TextAlign.Center,
-                    )
-
                     else -> {
+                        val bodyText = if (isEmpty)
+                            "Be the first to\nleave a memory"
+                        else
+                            "A treasured collection\nof heartfelt memories"
+
                         Text(
-                            text = "A treasured collection\nof heartfelt memories",
+                            text = bodyText,
                             style = TextStyle(
                                 fontFamily = serifFamily,
                                 fontStyle = FontStyle.Italic,
@@ -566,12 +547,63 @@ private fun BookCoverPage(
                             ),
                             textAlign = TextAlign.Center,
                         )
+
                         Spacer(Modifier.height(Spacing.xl))
-                        Text(
-                            text = "swipe to read  →",
-                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
-                            color = Gold.copy(alpha = 0.5f),
+
+                        // Pulsing write CTA
+                        val pulse = rememberInfiniteTransition(label = "writePulse")
+                        val scale by pulse.animateFloat(
+                            initialValue = 1f,
+                            targetValue = 1.07f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(900, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse,
+                            ),
+                            label = "writeScale",
                         )
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer { scaleX = scale; scaleY = scale }
+                                .shadow(
+                                    elevation = 6.dp,
+                                    shape = RoundedCornerShape(50.dp),
+                                    ambientColor = Gold.copy(alpha = 0.25f),
+                                    spotColor = Gold.copy(alpha = 0.35f),
+                                )
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
+                                .clickable(onClick = onWrite)
+                                .padding(horizontal = 28.dp, vertical = 13.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White,
+                                )
+                                Text(
+                                    text = "Leave a Memory",
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        letterSpacing = 0.3.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                    ),
+                                    color = Color.White,
+                                )
+                            }
+                        }
+
+                        if (!isEmpty) {
+                            Spacer(Modifier.height(Spacing.lg))
+                            Text(
+                                text = "swipe to read  →",
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
+                                color = Gold.copy(alpha = 0.45f),
+                            )
+                        }
                     }
                 }
             }
@@ -1928,4 +1960,94 @@ private fun FilledUrlPhotoSlot(
 private fun formatPageDate(millis: Long): String {
     if (millis == 0L) return ""
     return SimpleDateFormat("d MMMM yyyy", Locale.ENGLISH).format(Date(millis))
+}
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, name = "Memory Entry Card")
+@Composable
+private fun MemoryEntryCardPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        MemoryEntryCard(
+            post = com.wednowapp.wednow.domain.model.GuestbookPost(
+                id = "p1", senderName = "Emma Davis",
+                message = "Wishing you both a lifetime of love, laughter, and endless happiness together. It was such a beautiful ceremony — we're so happy to have been part of this magical day! 💕",
+                timestamp = System.currentTimeMillis() - 3_600_000,
+            ),
+            pageIndex = 1,
+            totalPages = 4,
+            canEdit = true,
+            isOwned = true,
+            modifier = androidx.compose.ui.Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, name = "Guestbook – Loading")
+@Composable
+private fun GuestbookLoadingPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        GuestbookContent(
+            posts = null,
+            submitState = com.wednowapp.wednow.presentation.guestbook.PostSubmitState.Idle,
+            messageInput = "",
+            selectedPhotoUris = emptyList(),
+            senderName = "Emma Davis",
+            onMessageChange = {},
+            onPhotosSelected = {},
+            onPhotoRemoved = {},
+            onSubmit = {},
+            canSubmit = false,
+            onResetSubmit = {},
+            onBack = {},
+            snackbarHost = androidx.compose.material3.SnackbarHostState(),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "Guestbook – With Entries"
+)
+@Composable
+private fun GuestbookPopulatedPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        GuestbookContent(
+            posts = listOf(
+                com.wednowapp.wednow.domain.model.GuestbookPost(
+                    id = "1",
+                    senderName = "Emma Davis",
+                    message = "Wishing you a lifetime of happiness! 💕",
+                    timestamp = System.currentTimeMillis() - 7_200_000
+                ),
+                com.wednowapp.wednow.domain.model.GuestbookPost(
+                    id = "2",
+                    senderName = "Liam Chen",
+                    message = "Congratulations on your special day! 🎉",
+                    timestamp = System.currentTimeMillis() - 3_600_000
+                ),
+                com.wednowapp.wednow.domain.model.GuestbookPost(
+                    id = "3",
+                    senderName = "Olivia Brown",
+                    message = "So happy to celebrate with you both. ❤️",
+                    timestamp = System.currentTimeMillis() - 1_800_000
+                ),
+            ),
+            submitState = com.wednowapp.wednow.presentation.guestbook.PostSubmitState.Idle,
+            messageInput = "",
+            selectedPhotoUris = emptyList(),
+            senderName = "James Walker",
+            onMessageChange = {},
+            onPhotosSelected = {},
+            onPhotoRemoved = {},
+            onSubmit = {},
+            canSubmit = false,
+            onResetSubmit = {},
+            onBack = {},
+            snackbarHost = androidx.compose.material3.SnackbarHostState(),
+        )
+    }
 }

@@ -803,3 +803,72 @@ private fun TimelineFlorals() {
         drawCircle(Color(0xFFEAB8BC).copy(alpha = 0.16f), 36.dp.toPx(),  Offset(20.dp.toPx(),  by - 155.dp.toPx()))
     }
 }
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "Timeline – Active"
+)
+@androidx.compose.runtime.Composable
+private fun TimelinePreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        val wedding = com.wednowapp.wednow.domain.model.Wedding(
+            id = "w1", name = "Sophie & James",
+            date = 1781481600000L, location = "Grand Ballroom, New York",
+        )
+        val events = listOf(
+            TimelineEvent(
+                0,
+                "10:00 AM",
+                "Guest Arrival",
+                icon = Icons.Default.Groups,
+                status = EventStatus.COMPLETED
+            ),
+            TimelineEvent(
+                1,
+                "11:00 AM",
+                "Ceremony Begins",
+                icon = Icons.Default.Favorite,
+                status = EventStatus.CURRENT
+            ),
+            TimelineEvent(
+                2,
+                "12:30 PM",
+                "Cocktail Hour",
+                icon = Icons.Default.WineBar,
+                status = EventStatus.UPCOMING
+            ),
+            TimelineEvent(
+                3,
+                "2:00 PM",
+                "Wedding Dinner",
+                icon = Icons.Default.Restaurant,
+                status = EventStatus.UPCOMING
+            ),
+            TimelineEvent(
+                4,
+                "4:00 PM",
+                "First Dance",
+                icon = Icons.Default.MusicNote,
+                status = EventStatus.UPCOMING
+            ),
+            TimelineEvent(
+                5,
+                "6:00 PM",
+                "Cake Cutting",
+                icon = Icons.Default.Cake,
+                status = EventStatus.UPCOMING
+            ),
+            TimelineEvent(
+                6,
+                "8:00 PM",
+                "Evening Celebration",
+                icon = Icons.Default.Celebration,
+                status = EventStatus.UPCOMING
+            ),
+        )
+        TimelineContent(wedding = wedding, events = events, onBack = {})
+    }
+}

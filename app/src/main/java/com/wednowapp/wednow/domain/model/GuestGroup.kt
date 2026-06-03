@@ -16,6 +16,7 @@ data class GuestMember(
     val name: String = "",
     val role: String = MemberRole.ADULT,
     val plusOneAllowed: Boolean = false,
+    val rsvpStatus: String? = null,
 )
 
 object MemberRole {

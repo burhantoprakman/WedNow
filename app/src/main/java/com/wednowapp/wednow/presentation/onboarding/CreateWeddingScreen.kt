@@ -84,6 +84,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -112,6 +113,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.wednowapp.wednow.domain.model.TimelineEventData
+import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
+import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.wednowapp.wednow.ui.theme.Blush
 import com.wednowapp.wednow.ui.theme.BlushDeep
 import com.wednowapp.wednow.ui.theme.BlushLight
@@ -138,11 +141,26 @@ import kotlinx.coroutines.launch
 fun CreateWeddingScreen(
     onWeddingCreated: (weddingId: String) -> Unit,
     onJoinWeddingClick: () -> Unit,
-    onSignInClick: (() -> Unit)? = null,
     viewModel: CreateWeddingViewModel = hiltViewModel(),
 ) {
     val createState by viewModel.createState.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
+
+    val authViewModel = LocalAuthViewModel.current
+    val authState by authViewModel.authState.collectAsState()
+    var showSignInGate by remember { mutableStateOf(false) }
+    var pendingBegin by remember { mutableStateOf(false) }
+
+    // When sign-in completes while the user was trying to begin, advance to step 1.
+    // The NavGraph's own LaunchedEffect will navigate away if they have an existing wedding;
+    // if not, we start the creation flow here.
+    LaunchedEffect(authState) {
+        if (pendingBegin && authState != null) {
+            pendingBegin = false
+            showSignInGate = false
+            viewModel.goNext()
+        }
+    }
 
     BackHandler(enabled = viewModel.step > 0) { viewModel.goBack() }
 
@@ -170,10 +188,7 @@ fun CreateWeddingScreen(
                 transitionSpec = {
                     val fwd = targetState > initialState
                     slideInHorizontally(
-                        tween(
-                            380,
-                            easing = FastOutSlowInEasing
-                        )
+                        tween(380, easing = FastOutSlowInEasing)
                     ) { if (fwd) it else -it } +
                             fadeIn(tween(380)) togetherWith
                             slideOutHorizontally(tween(280)) { if (fwd) -it / 3 else it / 3 } +
@@ -183,19 +198,35 @@ fun CreateWeddingScreen(
             ) { step ->
                 when (step) {
                     0 -> WelcomeStep(
-                        onBegin = viewModel::goNext,
+                        onBegin = {
+                            if (authViewModel.isSignedIn) viewModel.goNext()
+                            else {
+                                pendingBegin = true; showSignInGate = true
+                            }
+                        },
                         onJoin = onJoinWeddingClick,
-                        onSignIn = onSignInClick,
                     )
                     7 -> InvitationStep(
                         vm = viewModel,
-                        isLoading = createState is CreateWeddingState.Loading
+                        isLoading = createState is CreateWeddingState.Loading,
                     )
-
                     else -> StepScaffold(vm = viewModel, step = step)
                 }
             }
         }
+    }
+
+    if (showSignInGate) {
+        SignInBottomSheet(
+            authViewModel = authViewModel,
+            reason = "Sign in to create and manage your wedding.",
+            onDismiss = {
+                showSignInGate = false
+                pendingBegin = false
+                authViewModel.clearError()
+            },
+            onSuccess = { showSignInGate = false },
+        )
     }
 }
 
@@ -301,7 +332,6 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
 private fun WelcomeStep(
     onBegin: () -> Unit,
     onJoin: () -> Unit,
-    onSignIn: (() -> Unit)? = null,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         // Soft background florals
@@ -395,18 +425,6 @@ private fun WelcomeStep(
                     style = MaterialTheme.typography.bodyMedium,
                     color = WarmGray400,
                 )
-            }
-
-            if (onSignIn != null) {
-                TextButton(onClick = onSignIn) {
-                    Text(
-                        "Sign in",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        ),
-                        color = Gold,
-                    )
-                }
             }
 
             Spacer(Modifier.height(Spacing.xl))

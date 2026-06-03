@@ -202,10 +202,18 @@ class FirestoreService @Inject constructor(
             id = doc.id,
             shortCode = doc.getString("shortCode") ?: "",
             name = doc.getString("name") ?: "",
-            date = doc.getString("date") ?: "",
+            date = when (val raw = doc.get("date")) {
+                is Long -> raw
+                is Number -> raw.toLong()
+                else -> 0L
+            },
             location = doc.getString("location") ?: "",
             adminGuestId = doc.getString("adminGuestId") ?: "",
-            createdAt = doc.getLong("createdAt") ?: 0L,
+            createdAt = when (val raw = doc.get("createdAt")) {
+                is Long -> raw
+                is Number -> raw.toLong()
+                else -> 0L
+            },
             coverImageUrl = doc.getString("coverImageUrl") ?: "",
             menu = menu,
             dressCode = dressCode,

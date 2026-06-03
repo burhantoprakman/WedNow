@@ -768,12 +768,12 @@ private fun HeroSection(wedding: Wedding, modifier: Modifier = Modifier) {
 // ── Countdown section ─────────────────────────────────────────────────────────
 
 @Composable
-private fun CountdownSection(dateStr: String, modifier: Modifier = Modifier) {
-    var countdown by remember { mutableStateOf(timeUntilWedding(dateStr)) }
+private fun CountdownSection(dateMs: Long, modifier: Modifier = Modifier) {
+    var countdown by remember { mutableStateOf(timeUntilWedding(dateMs)) }
 
-    LaunchedEffect(dateStr) {
+    LaunchedEffect(dateMs) {
         while (true) {
-            countdown = timeUntilWedding(dateStr)
+            countdown = timeUntilWedding(dateMs)
             delay(1_000L)
         }
     }
@@ -866,7 +866,7 @@ private fun WeddingDetailsRow(
             WeddingDetailCard(
                 icon = Icons.Default.CalendarToday,
                 label = "Date",
-                value = wedding.date.ifBlank { "TBA" },
+                value = if (wedding.date == 0L) "TBA" else formatWeddingDate(wedding.date),
                 gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
                 iconTint = Color(0xFFC9A84C),
                 onClick = { openCalendar(context, wedding) },
@@ -2171,7 +2171,8 @@ private fun GlassNavPill(onClick: () -> Unit) {
 // ── Intent helpers ────────────────────────────────────────────────────────────
 
 private fun openCalendar(context: Context, wedding: Wedding) {
-    val startMs = parseWeddingDate(wedding.date) ?: return
+    if (wedding.date == 0L) return
+    val startMs = wedding.date
     val endMs = startMs + 8 * 60 * 60 * 1000L
     val intent = Intent(Intent.ACTION_INSERT).apply {
         data = CalendarContract.Events.CONTENT_URI
@@ -2197,53 +2198,88 @@ private fun openMaps(context: Context, location: String) {
     }
 }
 
-private fun parseWeddingDate(dateStr: String): Long? {
-    val formats = listOf(
-        "MMMM d, yyyy", "MMM d, yyyy", "MMMM dd, yyyy",
-        "MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd",
-        "d MMMM yyyy", "dd MMMM yyyy",
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+private fun formatWeddingDate(ms: Long): String {
+    if (ms == 0L) return ""
+    val utc = java.util.TimeZone.getTimeZone("UTC")
+    val date = Date(ms)
+    val dateFmt = SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH).apply { timeZone = utc }
+    val cal = Calendar.getInstance(utc).apply { time = date }
+    if (cal.get(Calendar.HOUR_OF_DAY) == 0 && cal.get(Calendar.MINUTE) == 0) return dateFmt.format(
+        date
     )
-    for (pattern in formats) {
-        try {
-            val sdf = SimpleDateFormat(pattern, Locale.ENGLISH)
-            sdf.isLenient = false
-            val date = sdf.parse(dateStr) ?: continue
-            val cal = Calendar.getInstance().apply {
-                time = date
-                set(Calendar.HOUR_OF_DAY, 14)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-            }
-            return cal.timeInMillis
-        } catch (_: Exception) {
-        }
-    }
-    return null
+    val timeFmt = SimpleDateFormat("h:mm a", Locale.ENGLISH).apply { timeZone = utc }
+    return "${dateFmt.format(date)} • ${timeFmt.format(date)}"
 }
 
-// ── Helper ────────────────────────────────────────────────────────────────────
-
-private fun timeUntilWedding(dateStr: String): CountdownTime? {
-    val formats = listOf(
-        "MMMM d, yyyy", "MMM d, yyyy", "MMMM dd, yyyy",
-        "MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd",
-        "d MMMM yyyy", "dd MMMM yyyy",
+private fun timeUntilWedding(dateMs: Long): CountdownTime? {
+    if (dateMs == 0L) return null
+    val diff = dateMs - System.currentTimeMillis()
+    if (diff <= 0L) return CountdownTime(0, 0, 0, 0)
+    return CountdownTime(
+        days = TimeUnit.MILLISECONDS.toDays(diff),
+        hours = TimeUnit.MILLISECONDS.toHours(diff) % 24L,
+        minutes = TimeUnit.MILLISECONDS.toMinutes(diff) % 60L,
+        seconds = TimeUnit.MILLISECONDS.toSeconds(diff) % 60L,
     )
-    for (pattern in formats) {
-        try {
-            val sdf = SimpleDateFormat(pattern, Locale.ENGLISH)
-            sdf.isLenient = false
-            val date: Date = sdf.parse(dateStr) ?: continue
-            val diff = date.time - System.currentTimeMillis()
-            if (diff <= 0L) return CountdownTime(0, 0, 0, 0)
-            return CountdownTime(
-                days = TimeUnit.MILLISECONDS.toDays(diff),
-                hours = TimeUnit.MILLISECONDS.toHours(diff) % 24L,
-                minutes = TimeUnit.MILLISECONDS.toMinutes(diff) % 60L,
-                seconds = TimeUnit.MILLISECONDS.toSeconds(diff) % 60L,
-            )
-        } catch (_: Exception) {
-        }
+}
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+private val _previewWedding = com.wednowapp.wednow.domain.model.Wedding(
+    id = "w1", shortCode = "WED123",
+    name = "Sophie & James",
+    date = 1781481600000L,
+    location = "Grand Ballroom, New York",
+    adminGuestId = "g1",
+    createdAt = 1_700_000_000_000L,
+)
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    name = "Guest Pass Card – Guest"
+)
+@Composable
+private fun GuestPassCardPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        GuestPassCard(
+            userName = "James Walker",
+            guestRole = com.wednowapp.wednow.domain.model.GuestRole.GUEST,
+            onClick = {},
+            modifier = androidx.compose.ui.Modifier.padding(16.dp),
+        )
     }
-    return null
+}
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    name = "Guest Pass Card – Admin"
+)
+@Composable
+private fun GuestPassCardAdminPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        GuestPassCard(
+            userName = "Sophie Walker",
+            guestRole = com.wednowapp.wednow.domain.model.GuestRole.ADMIN,
+            onClick = {},
+            modifier = androidx.compose.ui.Modifier.padding(16.dp),
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, name = "Hero Section")
+@Composable
+private fun HeroSectionPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        HeroSection(wedding = _previewWedding)
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, name = "Countdown – Future")
+@Composable
+private fun CountdownPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        CountdownSection(dateMs = System.currentTimeMillis() + 86_400_000L * 47)
+    }
 }

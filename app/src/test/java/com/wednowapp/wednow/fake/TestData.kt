@@ -66,7 +66,7 @@ object TestData {
         id = id,
         shortCode = shortCode,
         name = name,
-        date = "2026-06-15",
+        date = 1781481600000L, // 2026-06-15 midnight UTC
         location = "Test Venue",
         adminGuestId = adminGuestId,
         createdAt = System.currentTimeMillis(),

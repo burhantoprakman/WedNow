@@ -17,10 +17,6 @@ import androidx.navigation.navArgument
 import com.wednowapp.wednow.core.session.WeddingSessionManager
 import com.wednowapp.wednow.presentation.auth.AuthViewModel
 import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
-import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
-import com.wednowapp.wednow.presentation.identity.CreateWeddingNavViewModel
-import com.wednowapp.wednow.presentation.identity.IdentityViewModel
-import com.wednowapp.wednow.presentation.identity.LocalIdentityViewModel
 import com.wednowapp.wednow.presentation.broadcast.BroadcastScreen
 import com.wednowapp.wednow.presentation.chat.ChatScreen
 import com.wednowapp.wednow.presentation.chat.DirectMessageScreen
@@ -28,6 +24,9 @@ import com.wednowapp.wednow.presentation.guestbook.GuestbookScreen
 import com.wednowapp.wednow.presentation.guestmanagement.GuestManagementScreen
 import com.wednowapp.wednow.presentation.guests.GuestListScreen
 import com.wednowapp.wednow.presentation.home.HomeScreen
+import com.wednowapp.wednow.presentation.identity.CreateWeddingNavViewModel
+import com.wednowapp.wednow.presentation.identity.IdentityViewModel
+import com.wednowapp.wednow.presentation.identity.LocalIdentityViewModel
 import com.wednowapp.wednow.presentation.notifications.NotificationsScreen
 import com.wednowapp.wednow.presentation.onboarding.CreateWeddingScreen
 import com.wednowapp.wednow.presentation.onboarding.JoinWeddingScreen
@@ -106,7 +105,6 @@ fun WedNowNavGraph(
         composable(Screen.CreateWedding.route) {
             val auth = LocalAuthViewModel.current
             val authState by auth.authState.collectAsState()
-            var showSignIn by remember { mutableStateOf(false) }
             // Track previous sign-in state so we only react to sign-in transitions
             var wasSignedIn by remember { mutableStateOf(auth.isSignedIn) }
 
@@ -131,7 +129,6 @@ fun WedNowNavGraph(
 
             CreateWeddingScreen(
                 onWeddingCreated = { weddingId ->
-                    // After creation, show Guest Management before ShareInvitation
                     navController.navigate(
                         Screen.GuestManagement.createRoute(weddingId, fromOnboarding = true)
                     ) {
@@ -141,17 +138,7 @@ fun WedNowNavGraph(
                 onJoinWeddingClick = {
                     navController.navigate(Screen.JoinWedding.route)
                 },
-                onSignInClick = { showSignIn = true },
             )
-
-            if (showSignIn) {
-                SignInBottomSheet(
-                    authViewModel = auth,
-                    reason = "Sign in to access your previous wedding.",
-                    onDismiss = { showSignIn = false; auth.clearError() },
-                    onSuccess = { showSignIn = false },
-                )
-            }
         }
 
         // ── Join Wedding (manual entry — no pre-filled code) ──────────────────
@@ -246,11 +233,7 @@ fun WedNowNavGraph(
                 onNavigateToPhotos = { navController.navigate(Screen.Photos.createRoute(weddingId)) },
                 onNavigateToWeddingInfo = { navController.navigate(Screen.WeddingInfo.createRoute(weddingId)) },
                 onNavigateToGuests = {
-                    navController.navigate(
-                        Screen.GuestManagement.createRoute(
-                            weddingId
-                        )
-                    )
+                    navController.navigate(Screen.GuestList.createRoute(weddingId))
                 },
                 onNavigateToChat = { navController.navigate(Screen.Chat.createRoute(weddingId)) },
                 onNavigateToBroadcasts = { navController.navigate(Screen.Broadcasts.createRoute(weddingId)) },
@@ -271,7 +254,9 @@ fun WedNowNavGraph(
             route = Screen.GuestList.route,
             arguments = listOf(navArgument(Screen.GuestList.ARG) { type = NavType.StringType })
         ) {
-            GuestListScreen(onBack = { navController.popBackStack() })
+            GuestListScreen(
+                onBack = { navController.popBackStack() },
+            )
         }
 
         // ── Guest Management ──────────────────────────────────────────────────

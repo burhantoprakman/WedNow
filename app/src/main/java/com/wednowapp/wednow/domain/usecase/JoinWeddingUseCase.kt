@@ -86,7 +86,12 @@ class JoinWeddingUseCase @Inject constructor(
 
         guestRepository.addGuest(
             weddingId,
-            Guest(id = guestId, name = guestName.orEmpty(), role = role)
+            Guest(
+                id = guestId,
+                name = guestName.orEmpty(),
+                role = role,
+                groupId = groupMatch?.id,
+            )
         ).getOrElse { return Result.failure(it) }
 
         // ── Step 3: record in the cross-device membership index ───────────────

@@ -75,6 +75,8 @@ class CreateWeddingViewModel @Inject constructor(
     /** Raw millis of the user-selected date — fed back into DatePickerState so
      *  the picker opens on the already-chosen date rather than the current month. */
     var selectedDateMillis by mutableStateOf<Long?>(null); private set
+    private var selectedTimeHour: Int = 0
+    private var selectedTimeMinute: Int = 0
 
     // ── Step 3: Venue ─────────────────────────────────────────────────────────
     var venue by mutableStateOf(""); private set
@@ -156,6 +158,8 @@ class CreateWeddingViewModel @Inject constructor(
     }
 
     fun onTimeSelected(hour: Int, minute: Int) {
+        selectedTimeHour = hour
+        selectedTimeMinute = minute
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
             set(Calendar.MINUTE, minute)
@@ -225,9 +229,9 @@ class CreateWeddingViewModel @Inject constructor(
         viewModelScope.launch {
             _createState.value = CreateWeddingState.Loading
             val adminGuestId = GuestSessionManager.getGuestId(context)
-            val dateStr = listOf(formattedDate, formattedTime)
-                .filter { it.isNotBlank() }
-                .joinToString(" • ")
+            val weddingTimestamp = selectedDateMillis?.let { datePart ->
+                datePart + selectedTimeHour * 3_600_000L + selectedTimeMinute * 60_000L
+            } ?: 0L
 
             // Upload cover image first (use a temp placeholder ID, swap after weddingId is known)
             val coverImageUrl = coverImageUri?.let { uri ->
@@ -240,7 +244,7 @@ class CreateWeddingViewModel @Inject constructor(
 
             createWeddingUseCase(
                 name = coupleName.trim(),
-                date = dateStr,
+                date = weddingTimestamp,
                 location = venue.trim(),
                 adminGuestId = adminGuestId,
                 coverImageUrl = coverImageUrl,

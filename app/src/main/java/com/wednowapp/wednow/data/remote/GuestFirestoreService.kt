@@ -68,7 +68,8 @@ class GuestFirestoreService @Inject constructor(
         "name" to name,
         "role" to role,
         "rsvpStatus" to rsvpStatus,
-        "rsvpUpdatedAt" to rsvpUpdatedAt
+        "rsvpUpdatedAt" to rsvpUpdatedAt,
+        "groupId" to groupId,
     )
 
     private fun DocumentSnapshot.toGuest(): Guest? {
@@ -79,7 +80,8 @@ class GuestFirestoreService @Inject constructor(
                 name = getString("name") ?: "",
                 role = getString("role") ?: GuestRole.GUEST,
                 rsvpStatus = getString("rsvpStatus"),
-                rsvpUpdatedAt = getLong("rsvpUpdatedAt")
+                rsvpUpdatedAt = getLong("rsvpUpdatedAt"),
+                groupId = getString("groupId"),
             )
         }.getOrNull()
     }

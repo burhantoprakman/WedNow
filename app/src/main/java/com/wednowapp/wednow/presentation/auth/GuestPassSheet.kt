@@ -1,11 +1,20 @@
 package com.wednowapp.wednow.presentation.auth
 
-import androidx.compose.animation.animateColorAsState
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,8 +23,6 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,19 +42,25 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -83,12 +96,16 @@ private val DancingScriptGP = FontFamily(
 
 // ── Notification preference types ─────────────────────────────────────────────
 
-enum class NotifPrefType(val emoji: String, val label: String) {
-    WEDDING_UPDATES("✨", "Wedding Updates"),
-    CHAT_MESSAGES("💬", "Chat Messages"),
-    EVENT_REMINDERS("🎉", "Event Reminders"),
-    PHOTO_LIKES("❤️", "Photo Likes"),
-    NEW_MEMORIES("📸", "New Memories"),
+enum class NotifPrefType(val emoji: String, val label: String, val description: String) {
+    WEDDING_UPDATES(
+        "✨",
+        "Wedding Updates",
+        "Get notified when the date, venue, or schedule changes"
+    ),
+    CHAT_MESSAGES("💬", "Chat Messages", "Be alerted when new messages arrive in the group chat"),
+    EVENT_REMINDERS("📣", "Announcements", "Receive important broadcasts from the hosts"),
+    PHOTO_LIKES("❤️", "Photo Likes", "Know when someone likes one of your photos"),
+    NEW_MEMORIES("📸", "Guestbook Entries", "See when a new memory is added to the guestbook"),
 }
 
 // ── Guest Pass Sheet ──────────────────────────────────────────────────────────
@@ -111,7 +128,7 @@ enum class NotifPrefType(val emoji: String, val label: String) {
  * @param onTermsAndConditions Open Terms & Conditions.
  * @param onContactSupport    Open Contact Support.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GuestPassSheet(
     isSignedIn: Boolean,
@@ -126,6 +143,21 @@ fun GuestPassSheet(
     onTermsAndConditions: () -> Unit = {},
     onContactSupport: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+
+    // Notification permission state (Android 13+)
+    var hasNotifPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                        PackageManager.PERMISSION_GRANTED
+            } else true
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasNotifPermission = granted }
+
     // Local notification preferences — lives for the duration of this sheet session
     val notifMap = remember {
         mutableStateMapOf<NotifPrefType, Boolean>().apply {
@@ -183,19 +215,28 @@ fun GuestPassSheet(
             PassSectionLabel("Notifications")
             Spacer(Modifier.height(12.dp))
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                NotifPrefType.entries.forEach { type ->
-                    NotifPill(
-                        spec = type,
-                        isEnabled = notifMap[type] != false,
-                        onToggle = { notifMap[type] = !(notifMap[type] ?: true) },
-                    )
-                }
+            // Permission banner when POST_NOTIFICATIONS not yet granted
+            if (!hasNotifPermission) {
+                NotifPermissionBanner(
+                    onRequestPermission = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
+                )
+                Spacer(Modifier.height(8.dp))
             }
+
+            NotifTypeExpandableCard(
+                hasPermission = hasNotifPermission,
+                notifMap = notifMap,
+                onRequestPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                },
+                onToggle = { type -> notifMap[type] = !(notifMap[type] ?: true) },
+            )
 
             Spacer(Modifier.height(32.dp))
 
@@ -421,80 +462,278 @@ private fun PassSectionLabel(text: String) {
     }
 }
 
-// ── Notification pill ─────────────────────────────────────────────────────────
+// ── Notification permission banner — InfoGlassCard style ─────────────────────
 
 @Composable
-private fun NotifPill(
-    spec: NotifPrefType,
-    isEnabled: Boolean,
-    onToggle: () -> Unit,
-) {
+private fun NotifPermissionBanner(onRequestPermission: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-
-    // Spring press scale
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.91f else 1f,
-        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
-        label = "pillScale",
+        if (isPressed) 0.97f else 1f,
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
+        label = "bScale"
     )
-
-    // Animated chip colours
-    val bgColor by animateColorAsState(
-        targetValue = if (isEnabled) Gold.copy(alpha = 0.10f) else WarmGray100,
-        animationSpec = tween(260),
-        label = "pillBg",
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (isEnabled) Gold.copy(alpha = 0.52f) else WarmGray200,
-        animationSpec = tween(260),
-        label = "pillBorder",
-    )
-    val labelColor by animateColorAsState(
-        targetValue = if (isEnabled) GoldDeep else WarmGray500,
-        animationSpec = tween(260),
-        label = "pillLabel",
-    )
-    val glowElevation by animateDpAsState(
-        targetValue = if (isEnabled) 6.dp else 0.dp,
-        animationSpec = tween(260),
-        label = "pillGlow",
+    val elevation by animateDpAsState(if (isPressed) 0.dp else 4.dp, tween(180), label = "bElev")
+    val arrowOffset by animateFloatAsState(
+        if (isPressed) 5f else 0f,
+        spring(Spring.DampingRatioMediumBouncy),
+        label = "bArrow"
     )
 
     Box(
         modifier = Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .fillMaxWidth()
             .shadow(
-                elevation = glowElevation,
-                shape = RoundedCornerShape(50.dp),
-                ambientColor = Gold.copy(alpha = 0.28f),
-                spotColor = Gold.copy(alpha = 0.22f),
+                elevation,
+                RoundedCornerShape(18.dp),
+                ambientColor = Color.Black.copy(0.04f),
+                spotColor = Color.Black.copy(0.05f)
             )
-            .clip(RoundedCornerShape(50.dp))
-            .background(bgColor)
-            .border(0.8.dp, borderColor, RoundedCornerShape(50.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(0.84f),
+                        Color.White.copy(0.62f)
+                    )
+                )
+            )
+            .border(
+                0.8.dp,
+                Brush.verticalGradient(listOf(Color.White.copy(0.92f), WarmGray200.copy(0.55f))),
+                RoundedCornerShape(18.dp)
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onToggle,
+                onClick = onRequestPermission
             )
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    "Notifications are off",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    ),
+                    color = WarmGray800
+                )
+                Text(
+                    "Tap to allow WedNow to send you updates",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 0.1.sp
+                    ),
+                    color = WarmGray400
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Champagne.copy(0.45f))
+                    .graphicsLayer { translationX = arrowOffset },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    null,
+                    tint = Gold.copy(0.85f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+// ── Notification type expandable card ─────────────────────────────────────────
+
+@Composable
+private fun NotifTypeExpandableCard(
+    hasPermission: Boolean,
+    notifMap: MutableMap<NotifPrefType, Boolean>,
+    onRequestPermission: () -> Unit,
+    onToggle: (NotifPrefType) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (isPressed) 0.97f else 1f,
+        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium),
+        label = "ntScale"
+    )
+    val elevation by animateDpAsState(if (isPressed) 0.dp else 4.dp, tween(180), label = "ntElev")
+    val arrowAngle by animateFloatAsState(if (expanded) 90f else 0f, tween(220), label = "ntAngle")
+
+    Column {
+        // ── Header card (identical to InfoGlassCard) ──────────────────────────
+        Box(
+            modifier = Modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .fillMaxWidth()
+                .shadow(
+                    elevation,
+                    RoundedCornerShape(18.dp),
+                    ambientColor = Color.Black.copy(0.04f),
+                    spotColor = Color.Black.copy(0.05f)
+                )
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(0.84f),
+                            Color.White.copy(0.62f)
+                        )
+                    )
+                )
+                .border(
+                    0.8.dp,
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(0.92f),
+                            WarmGray200.copy(0.55f)
+                        )
+                    ),
+                    RoundedCornerShape(18.dp)
+                )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = {
+                        if (hasPermission) expanded = !expanded else onRequestPermission()
+                    },
+                )
+                .padding(horizontal = 18.dp, vertical = 16.dp),
         ) {
-            Text(text = spec.emoji, fontSize = 13.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "Type of Notifications",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        ),
+                        color = WarmGray800,
+                    )
+                    Text(
+                        text = "Choose which updates you'd like to receive",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.sp,
+                            letterSpacing = 0.1.sp
+                        ),
+                        color = WarmGray400,
+                    )
+                }
+                // Arrow circle — rotates 90° when expanded
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Champagne.copy(0.45f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Gold.copy(0.85f),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .rotate(arrowAngle),
+                    )
+                }
+            }
+        }
+
+        // ── Expanded notification rows ─────────────────────────────────────────
+        AnimatedVisibility(
+            visible = expanded && hasPermission,
+            enter = expandVertically(tween(280)) + fadeIn(tween(280)),
+            exit = shrinkVertically(tween(200)) + fadeOut(tween(200)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White),
+            ) {
+                NotifPrefType.entries.forEachIndexed { index, type ->
+                    NotifInlineRow(
+                        spec = type,
+                        isEnabled = notifMap[type] != false,
+                        onToggle = { onToggle(type) },
+                    )
+                    if (index < NotifPrefType.entries.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 18.dp),
+                            thickness = 0.5.dp,
+                            color = WarmGray100,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Inline notification row (inside expanded card) ────────────────────────────
+
+@Composable
+private fun NotifInlineRow(
+    spec: NotifPrefType,
+    isEnabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
-                text = spec.label,
-                style = MaterialTheme.typography.labelMedium.copy(
+                text = spec.emoji + "  " + spec.label,
+                style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = if (isEnabled) FontWeight.SemiBold else FontWeight.Normal,
-                    fontSize = 12.sp,
-                    letterSpacing = 0.2.sp,
+                    fontSize = 14.sp,
                 ),
-                color = labelColor,
+                color = if (isEnabled) WarmGray800 else WarmGray500,
+            )
+            Text(
+                text = spec.description,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    letterSpacing = 0.1.sp
+                ),
+                color = WarmGray400,
             )
         }
+        Switch(
+            checked = isEnabled,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Gold,
+                uncheckedThumbColor = Color.White,
+                uncheckedTrackColor = WarmGray200,
+                uncheckedBorderColor = WarmGray200,
+            ),
+        )
     }
 }
 

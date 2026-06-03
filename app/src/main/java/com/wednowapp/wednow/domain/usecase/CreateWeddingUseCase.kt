@@ -19,7 +19,7 @@ class CreateWeddingUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         name: String,
-        date: String,
+        date: Long,
         location: String,
         adminGuestId: String,
         coverImageUrl: String = "",

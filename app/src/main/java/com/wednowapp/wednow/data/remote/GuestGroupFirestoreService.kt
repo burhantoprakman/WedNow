@@ -98,6 +98,34 @@ class GuestGroupFirestoreService @Inject constructor(
         }
     }
 
+    fun getGuestGroupById(weddingId: String, groupId: String): Flow<GuestGroup?> = callbackFlow {
+        val listener = groupsRef(weddingId).document(groupId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error); return@addSnapshotListener
+                }
+                trySend(snapshot?.toGuestGroup(weddingId))
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun updateGroupMembers(
+        weddingId: String,
+        groupId: String,
+        members: List<GuestMember>,
+    ): Result<Unit> = runCatching {
+        groupsRef(weddingId).document(groupId).update(
+            "members", members.map { m ->
+                mapOf(
+                    "name" to m.name,
+                    "role" to m.role,
+                    "plusOneAllowed" to m.plusOneAllowed,
+                    "rsvpStatus" to m.rsvpStatus,
+                )
+            }
+        ).await()
+    }
+
     private fun GuestGroup.toMap(): Map<String, Any?> = mapOf(
         "familyName" to familyName,
         "inviteToken" to inviteToken,
@@ -107,6 +135,7 @@ class GuestGroupFirestoreService @Inject constructor(
                 "name" to m.name,
                 "role" to m.role,
                 "plusOneAllowed" to m.plusOneAllowed,
+                "rsvpStatus" to m.rsvpStatus,
             )
         },
         "rsvpStatus" to rsvpStatus,
@@ -123,6 +152,7 @@ class GuestGroupFirestoreService @Inject constructor(
                     name = m["name"] as? String ?: "",
                     role = m["role"] as? String ?: MemberRole.ADULT,
                     plusOneAllowed = m["plusOneAllowed"] as? Boolean ?: false,
+                    rsvpStatus = m["rsvpStatus"] as? String,
                 )
             }
             GuestGroup(

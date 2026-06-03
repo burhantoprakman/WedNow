@@ -76,7 +76,9 @@ fun BroadcastScreen(
     ) { innerPadding ->
         if (broadcasts.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -96,7 +98,9 @@ fun BroadcastScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -215,3 +219,31 @@ private fun ComposeDialog(
 
 private fun formatTimestamp(millis: Long): String =
     SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(millis))
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, name = "Broadcast Card")
+@androidx.compose.runtime.Composable
+private fun BroadcastCardPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        androidx.compose.foundation.layout.Column(
+            modifier = androidx.compose.ui.Modifier.padding(16.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            BroadcastCard(
+                broadcast = com.wednowapp.wednow.domain.model.Broadcast(
+                    id = "1", sentByName = "Sophie & James",
+                    message = "Welcome everyone! 🎉 We're so excited to celebrate this special day with you all. Please head to the garden terrace for the ceremony.",
+                    timestamp = System.currentTimeMillis() - 1_800_000,
+                )
+            )
+            BroadcastCard(
+                broadcast = com.wednowapp.wednow.domain.model.Broadcast(
+                    id = "2", sentByName = "James Walker",
+                    message = "Dinner is now being served in the main hall. Please make your way there.",
+                    timestamp = System.currentTimeMillis() - 300_000,
+                )
+            )
+        }
+    }
+}

@@ -84,6 +84,11 @@ import com.wednowapp.wednow.ui.theme.WarmGray700
 import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -455,10 +460,10 @@ private fun RealInvitationCard(
                 Spacer(Modifier.height(20.dp))
 
                 // ── Date & venue
-                if (wedding.date.isNotBlank()) {
+                if (wedding.date != 0L) {
                     InvitationLine(
                         label = "DATE & TIME",
-                        value = wedding.date,
+                        value = formatWeddingDate(wedding.date),
                     )
                     Spacer(Modifier.height(10.dp))
                 }
@@ -469,7 +474,7 @@ private fun RealInvitationCard(
                     )
                 }
 
-                if (wedding.date.isNotBlank() || wedding.location.isNotBlank()) {
+                if (wedding.date != 0L || wedding.location.isNotBlank()) {
                     Spacer(Modifier.height(20.dp))
                     ThinDividerWithDiamond()
                     Spacer(Modifier.height(20.dp))
@@ -777,6 +782,21 @@ private fun generateQrBitmap(content: String, sizePx: Int): Bitmap {
         )
     }
     return bmp
+}
+
+// ── Date formatting ───────────────────────────────────────────────────────────
+
+private fun formatWeddingDate(ms: Long): String {
+    if (ms == 0L) return ""
+    val utc = TimeZone.getTimeZone("UTC")
+    val date = Date(ms)
+    val dateFmt = SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH).apply { timeZone = utc }
+    val cal = Calendar.getInstance(utc).apply { time = date }
+    if (cal.get(Calendar.HOUR_OF_DAY) == 0 && cal.get(Calendar.MINUTE) == 0) return dateFmt.format(
+        date
+    )
+    val timeFmt = SimpleDateFormat("h:mm a", Locale.ENGLISH).apply { timeZone = utc }
+    return "${dateFmt.format(date)} • ${timeFmt.format(date)}"
 }
 
 // ── Save PDF to Downloads ─────────────────────────────────────────────────────

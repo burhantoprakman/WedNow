@@ -385,3 +385,31 @@ private fun OtpCell(char: Char?, isActive: Boolean) {
         }
     }
 }
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "Join Wedding Screen"
+)
+@Composable
+private fun JoinWeddingPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        OtpCodeInput(
+            value = "WED",
+            onValueChange = {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, name = "OTP Input – Filled")
+@Composable
+private fun OtpFilledPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        OtpCodeInput(
+            value = "ABC123",
+            onValueChange = {},
+        )
+    }
+}

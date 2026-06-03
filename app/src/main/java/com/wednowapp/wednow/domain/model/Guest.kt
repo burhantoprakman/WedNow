@@ -5,7 +5,8 @@ data class Guest(
     val name: String = "",
     val role: String = GuestRole.GUEST,
     val rsvpStatus: String? = null,
-    val rsvpUpdatedAt: Long? = null
+    val rsvpUpdatedAt: Long? = null,
+    val groupId: String? = null,
 )
 
 object GuestRole {

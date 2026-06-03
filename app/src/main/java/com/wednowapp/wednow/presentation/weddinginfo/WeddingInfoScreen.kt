@@ -68,6 +68,8 @@ import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -79,6 +81,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -131,7 +134,9 @@ import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 private data class ColorSwatch(val color: Color, val label: String, val hex: String)
 
@@ -636,33 +641,47 @@ private fun EditorTextField(
 
 // ── Date editor ───────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateEditorSheet(
-    current: String,
-    onUpdate: (String) -> Unit,
+    current: Long,
+    onUpdate: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var text by remember { mutableStateOf(current) }
+    val dpState = rememberDatePickerState(
+        initialSelectedDateMillis = if (current == 0L) null else current,
+    )
 
     ElegantBottomSheetEditor(
         title = "Wedding Date",
         subtitle = "When will you celebrate your love?",
         onDismiss = {
-            onUpdate(text)
+            dpState.selectedDateMillis?.let { onUpdate(it) }
             onDismiss()
         },
     ) {
-        EditorTextField(
-            value = text,
-            onValueChange = { text = it; onUpdate(it) },
-            label = "Date",
-            placeholder = "e.g. June 14, 2025",
-        )
-        Spacer(Modifier.height(Spacing.sm))
-        Text(
-            "Accepted formats: June 14, 2025 · 14/06/2025 · 2025-06-14",
-            style = MaterialTheme.typography.bodySmall,
-            color = WarmGray300,
+        DatePicker(
+            state = dpState,
+            modifier = Modifier.fillMaxWidth(),
+            colors = DatePickerDefaults.colors(
+                containerColor = Ivory,
+                titleContentColor = WarmGray600,
+                headlineContentColor = WarmGray800,
+                navigationContentColor = WarmGray600,
+                weekdayContentColor = WarmGray500,
+                dayContentColor = WarmGray800,
+                disabledDayContentColor = WarmGray300,
+                selectedDayContainerColor = Gold,
+                selectedDayContentColor = Color.White,
+                disabledSelectedDayContainerColor = WarmGray200,
+                disabledSelectedDayContentColor = WarmGray400,
+                todayDateBorderColor = Gold,
+                todayContentColor = GoldDeep,
+                yearContentColor = WarmGray700,
+                currentYearContentColor = GoldDeep,
+                selectedYearContainerColor = Gold,
+                selectedYearContentColor = Color.White,
+            ),
         )
     }
 }
@@ -1676,7 +1695,7 @@ private fun DateSection(wedding: Wedding, context: Context) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                wedding.date.ifBlank { "Date TBA" },
+                if (wedding.date == 0L) "Date TBA" else formatWeddingDate(wedding.date),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = WarmGray800
             )
@@ -2235,13 +2254,9 @@ private fun WeddingInfoFlorals() {
 // ── Intent helpers ────────────────────────────────────────────────────────────
 
 private fun openCalendar(context: Context, wedding: Wedding) {
-    val dateMs = parseWeddingDate(wedding.date) ?: System.currentTimeMillis()
-    val cal = Calendar.getInstance().apply { timeInMillis = dateMs }
-    cal.set(Calendar.HOUR_OF_DAY, 14); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0)
-    val startMs = cal.timeInMillis
-    cal.set(Calendar.HOUR_OF_DAY, 22)
-    val endMs = cal.timeInMillis
-
+    if (wedding.date == 0L) return
+    val startMs = wedding.date
+    val endMs = startMs + 8 * 60 * 60 * 1000L
     val intent = Intent(Intent.ACTION_INSERT).apply {
         data = CalendarContract.Events.CONTENT_URI
         putExtra(CalendarContract.Events.TITLE, "Wedding Day — ${wedding.name}")
@@ -2271,23 +2286,88 @@ private fun openMaps(context: Context, location: String) {
     }
 }
 
-private fun parseWeddingDate(dateStr: String): Long? {
-    val formats = listOf(
-        "MMMM d, yyyy",
-        "MMM d, yyyy",
-        "MMMM dd, yyyy",
-        "MM/dd/yyyy",
-        "dd/MM/yyyy",
-        "yyyy-MM-dd",
-        "d MMMM yyyy",
-        "dd MMMM yyyy"
-    )
-    for (pattern in formats) {
-        try {
-            val sdf = SimpleDateFormat(pattern, Locale.ENGLISH)
-            sdf.isLenient = false
-            return sdf.parse(dateStr)?.time
-        } catch (_: Exception) { }
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+private val _previewWedding = com.wednowapp.wednow.domain.model.Wedding(
+    id = "w1", shortCode = "WED123",
+    name = "Sophie & James",
+    date = 1781481600000L,
+    location = "Grand Ballroom, New York",
+    adminGuestId = "g1",
+    createdAt = 1_700_000_000_000L,
+    menu = listOf(
+        com.wednowapp.wednow.domain.model.MenuCourseData(
+            "Starter",
+            "🥗",
+            listOf("Caesar Salad", "Bruschetta")
+        ),
+        com.wednowapp.wednow.domain.model.MenuCourseData(
+            "Main",
+            "🍽️",
+            listOf("Chicken Supreme", "Vegan Risotto")
+        ),
+        com.wednowapp.wednow.domain.model.MenuCourseData("Dessert", "🍰", listOf("Wedding Cake")),
+    ),
+    dressCode = com.wednowapp.wednow.domain.model.DressCodeData(style = "Black Tie"),
+)
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "Wedding Info – View"
+)
+@Composable
+private fun WeddingInfoViewPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        WeddingInfoContent(
+            wedding = _previewWedding,
+            isPrivileged = false,
+            editMode = false,
+            saveState = com.wednowapp.wednow.presentation.weddinginfo.SaveState.Idle,
+            onBack = {},
+            onCopyCode = {},
+            onEnterEditMode = {},
+            onExitEditMode = {},
+            onUpdateDraft = {},
+            onSave = {},
+            snackbarHost = androidx.compose.material3.SnackbarHostState(),
+        )
     }
-    return null
+}
+
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    name = "Wedding Info – Admin Edit"
+)
+@Composable
+private fun WeddingInfoEditPreview() {
+    com.wednowapp.wednow.ui.theme.WedNowTheme {
+        WeddingInfoContent(
+            wedding = _previewWedding,
+            isPrivileged = true,
+            editMode = true,
+            saveState = com.wednowapp.wednow.presentation.weddinginfo.SaveState.Idle,
+            onBack = {},
+            onCopyCode = {},
+            onEnterEditMode = {},
+            onExitEditMode = {},
+            onUpdateDraft = {},
+            onSave = {},
+            snackbarHost = androidx.compose.material3.SnackbarHostState(),
+        )
+    }
+}
+
+private fun formatWeddingDate(ms: Long): String {
+    if (ms == 0L) return ""
+    val utc = TimeZone.getTimeZone("UTC")
+    val date = Date(ms)
+    val dateFmt = SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH).apply { timeZone = utc }
+    val cal = Calendar.getInstance(utc).apply { time = date }
+    if (cal.get(Calendar.HOUR_OF_DAY) == 0 && cal.get(Calendar.MINUTE) == 0) return dateFmt.format(
+        date
+    )
+    val timeFmt = SimpleDateFormat("h:mm a", Locale.ENGLISH).apply { timeZone = utc }
+    return "${dateFmt.format(date)} • ${timeFmt.format(date)}"
 }
