@@ -126,7 +126,7 @@ fun ShareInvitationScreen(
                         onEnterWedding = onEnterWedding,
                         onBack = onBack,
                         snackbarHost = snackbarHost,
-                        deepLinkUrl = "https://wednow.app/join/$code",
+                        deepLinkUrl = "https://maritsa.app/join/$code",
                     )
                 }
             }
@@ -654,10 +654,10 @@ private fun ActionButton(
  * Opens [url] via the standard ACTION_VIEW intent.
  *
  * Behaviour on Android:
- *  • If [url] is the WedNow App Link (https://wednow.app/join/…) and the app is
+ *  • If [url] is the Maritsa App Link (https://maritsa.app/join/…) and the app is
  *    installed, Android routes it directly to WedNow (no browser needed).
  *  • If the app is **not** installed, the browser opens the page.  Host a simple
- *    redirect page at https://wednow.app/join/{id} that sends guests to the
+ *    redirect page at https://maritsa.app/join/{id} that sends guests to the
  *    Play Store, e.g.:
  *      <meta http-equiv="refresh" content="0; url=https://play.google.com/store/apps/details?id=com.wednowapp.wednow">
  */
@@ -803,7 +803,7 @@ private fun formatWeddingDate(ms: Long): String {
 
 private fun savePdfToDocuments(context: Context, pdfBytes: ByteArray, weddingId: String): Boolean =
     runCatching {
-        val filename = "WedNow_Invitation_$weddingId.pdf"
+        val filename = "Maritsa_Invitation_$weddingId.pdf"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, filename)

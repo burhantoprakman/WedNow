@@ -46,17 +46,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:scheme="wednow"
+                    android:scheme="maritsa"
                     android:host="join" />
             </intent-filter>
 
             <!--
                 Android App Links — verified HTTPS deep link.
-                URI format: https://wednow.app/join/{weddingId}
-                • App installed  → Android opens WedNow directly (no browser).
+                URI format: https://maritsa.app/join/{weddingId}
+                • App installed  → Android opens Maritsa directly (no browser).
                 • App not installed → browser opens the URL; host the page at
-                  https://wednow.app/join/{id} to redirect guests to the Play Store.
-                Requires /.well-known/assetlinks.json served at wednow.app.
+                  https://maritsa.app/join/{id} to redirect guests to the Play Store.
+                Requires /.well-known/assetlinks.json served at maritsa.app.
                 See: https://developer.android.com/training/app-links
             -->
             <intent-filter android:autoVerify="true">
@@ -67,7 +67,7 @@
 
                 <data
                     android:scheme="https"
-                    android:host="wednow.app"
+                    android:host="maritsa.app"
                     android:pathPrefix="/join" />
             </intent-filter>
 

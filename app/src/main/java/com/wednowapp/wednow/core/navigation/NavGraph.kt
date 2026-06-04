@@ -253,9 +253,14 @@ fun WedNowNavGraph(
         composable(
             route = Screen.GuestList.route,
             arguments = listOf(navArgument(Screen.GuestList.ARG) { type = NavType.StringType })
-        ) {
+        ) { backStackEntry ->
+            val weddingId = backStackEntry.arguments?.getString(Screen.GuestList.ARG)
+                ?: return@composable
             GuestListScreen(
                 onBack = { navController.popBackStack() },
+                onNavigateToDm = { guestId ->
+                    navController.navigate(Screen.DirectMessage.createRoute(weddingId, guestId))
+                },
             )
         }
 

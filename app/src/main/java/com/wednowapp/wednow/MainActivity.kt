@@ -16,7 +16,7 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen() // dismiss the system splash immediately; our Compose splash takes over
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val deepLinkWeddingId = extractDeepLinkWeddingId(intent)
@@ -49,19 +49,19 @@ class MainActivity : ComponentActivity() {
      * does not carry a recognised deep link.
      *
      * Supported formats:
-     *   • wednow://join/{weddingId}          – custom-scheme link
-     *   • https://wednow.app/join/{weddingId} – verified App Link
+     *   • maritsa://join/{weddingId}          – custom-scheme link
+     *   • https://maritsa.app/join/{weddingId} – verified App Link
      */
     private fun extractDeepLinkWeddingId(intent: Intent?): String? {
         val uri: Uri = intent?.data ?: return null
         return when {
-            // wednow://join/{weddingId}
-            uri.scheme == "wednow" && uri.host == "join" ->
+            // maritsa://join/{weddingId}
+            uri.scheme == "maritsa" && uri.host == "join" ->
                 uri.lastPathSegment?.takeIf { it.isNotBlank() }
 
-            // https://wednow.app/join/{weddingId}
+            // https://maritsa.app/join/{weddingId}
             uri.scheme == "https" &&
-                    (uri.host == "wednow.app" || uri.host == "www.wednow.app") -> {
+                    (uri.host == "maritsa.app" || uri.host == "www.maritsa.app") -> {
                 val segments = uri.pathSegments
                 if (segments.size >= 2 && segments[0] == "join") segments[1] else null
             }

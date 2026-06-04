@@ -202,7 +202,7 @@ class GuestListViewModel @Inject constructor(
             val token = if (isNew) generateToken() else {
                 currentGroups[groupId]?.inviteToken ?: generateToken()
             }
-            val link = "https://wednow.app/invite/$token"
+            val link = "https://maritsa.app/invite/$token"
             val existingGroup = currentGroups[groupId]
             val group = GuestGroup(
                 id = groupId,
@@ -264,7 +264,7 @@ class GuestListViewModel @Inject constructor(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    fun eventQrContent(): String = "https://wednow.app/join/$weddingId"
+    fun eventQrContent(): String = "https://maritsa.app/join/$weddingId"
 
     private fun generateToken(): String =
         UUID.randomUUID().toString().replace("-", "").take(6).uppercase()

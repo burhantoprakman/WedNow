@@ -1,18 +1,21 @@
 package com.wednowapp.wednow.presentation.notifications
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,8 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
@@ -37,39 +38,69 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.wednowapp.wednow.R
 import com.wednowapp.wednow.domain.model.AppNotification
 import com.wednowapp.wednow.domain.model.NotificationType
+import com.wednowapp.wednow.ui.theme.Champagne
+import com.wednowapp.wednow.ui.theme.ChampagneLight
+import com.wednowapp.wednow.ui.theme.Gold
+import com.wednowapp.wednow.ui.theme.GoldDeep
+import com.wednowapp.wednow.ui.theme.Ivory
+import com.wednowapp.wednow.ui.theme.WarmGray200
+import com.wednowapp.wednow.ui.theme.WarmGray300
+import com.wednowapp.wednow.ui.theme.WarmGray400
+import com.wednowapp.wednow.ui.theme.WarmGray500
+import com.wednowapp.wednow.ui.theme.WarmGray600
+import com.wednowapp.wednow.ui.theme.WarmGray800
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+// ── Script font ───────────────────────────────────────────────────────────────
+
+private val _nGfProvider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs,
+)
+private val DancingScriptN = FontFamily(
+    Font(GoogleFont("Dancing Script"), _nGfProvider, FontWeight.SemiBold),
+)
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,97 +114,173 @@ fun NotificationsScreen(
     val canSend by viewModel.canSendAnnouncement.collectAsState()
     val unreadCount by viewModel.unreadCount.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Notifications")
-                        if (unreadCount > 0) {
-                            Spacer(Modifier.width(8.dp))
-                            UnreadBadge(count = unreadCount)
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (unreadCount > 0) {
-                        IconButton(onClick = viewModel::markAllAsRead) {
-                            Icon(
-                                imageVector = Icons.Default.DoneAll,
-                                contentDescription = "Mark all as read",
-                            )
-                        }
-                    }
-                },
-            )
-        },
-        floatingActionButton = {
-            if (canSend) {
-                ExtendedFloatingActionButton(
-                    onClick = viewModel::openComposer,
-                    icon = { Icon(Icons.Default.Campaign, contentDescription = null) },
-                    text = { Text("Announce") },
+    val isEmpty = sections.all { it.items.isEmpty() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0.00f to Color(0xFFCDD8E8),
+                        0.50f to Color(0xFFE8D8C0),
+                        1.00f to Color(0xFFF5EDE0),
+                    ),
+                    start = Offset(1400f, 0f),
+                    end = Offset(0f, 2400f),
                 )
-            }
-        },
-    ) { innerPadding ->
-
-        val isEmpty = sections.all { it.items.isEmpty() }
-
-        if (isEmpty) {
-            EmptyState(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
             )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                sections.forEach { section ->
-                    // Date header
-                    item(key = "header_${section.label}") {
-                        DateSectionHeader(label = section.label)
-                    }
-
-                    items(section.items, key = { it.id }) { notification ->
-                        val isRead = notification.id in readIds
-
-                        AnimatedVisibility(
-                            visible = true,
-                            enter = fadeIn() + expandVertically(),
+    ) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Notifications",
+                                style = TextStyle(
+                                    fontFamily = DancingScriptN,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 28.sp,
+                                    color = WarmGray800,
+                                ),
+                            )
+                            if (unreadCount > 0) {
+                                Spacer(Modifier.width(8.dp))
+                                UnreadPill(count = unreadCount)
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 12.dp)
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            ChampagneLight.copy(alpha = 0.92f),
+                                            Champagne.copy(alpha = 0.55f),
+                                        )
+                                    )
+                                )
+                                .border(0.8.dp, Gold.copy(alpha = 0.28f), CircleShape)
+                                .clickable(onClick = onBack),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            NotificationCard(
-                                notification = notification,
-                                isRead = isRead,
-                                onClick = {
-                                    if (!isRead) viewModel.markAsRead(notification)
-                                    // Navigate to target screen if deep link available
-                                    viewModel.resolveDeepLinkRoute(notification)?.let { route ->
-                                        navController?.navigate(route)
-                                    }
-                                },
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = GoldDeep,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    },
+                    actions = {
+                        if (unreadCount > 0) {
+                            TextButton(
+                                onClick = viewModel::markAllAsRead,
+                                modifier = Modifier.padding(end = 8.dp),
+                            ) {
+                                Text(
+                                    text = "Mark all read",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = GoldDeep,
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent,
+                    ),
+                )
+            },
+            floatingActionButton = {
+                if (canSend) {
+                    Box(
+                        modifier = Modifier
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(28.dp),
+                                ambientColor = GoldDeep.copy(alpha = 0.22f),
+                                spotColor = GoldDeep.copy(alpha = 0.28f),
+                            )
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = viewModel::openComposer,
+                            )
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Campaign,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = "Announce",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = Color.White,
                             )
                         }
                     }
-
-                    // Small gap between sections
-                    item(key = "gap_${section.label}") { Spacer(Modifier.height(4.dp)) }
+                }
+            },
+        ) { innerPadding ->
+            if (isEmpty) {
+                EmptyState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    sections.forEach { section ->
+                        item(key = "header_${section.label}") {
+                            DateSectionHeader(label = section.label)
+                        }
+                        items(section.items, key = { it.id }) { notification ->
+                            val isRead = notification.id in readIds
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(tween(260)) + expandVertically(tween(260)),
+                            ) {
+                                NotificationCard(
+                                    notification = notification,
+                                    isRead = isRead,
+                                    onClick = {
+                                        if (!isRead) viewModel.markAsRead(notification)
+                                        viewModel.resolveDeepLinkRoute(notification)?.let { route ->
+                                            navController?.navigate(route)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                        item(key = "gap_${section.label}") { Spacer(Modifier.height(4.dp)) }
+                    }
                 }
             }
         }
     }
-
-    // ── Announcement Composer dialog ──────────────────────────────────────────
 
     if (viewModel.isComposerVisible) {
         AnnouncementComposer(
@@ -198,123 +305,215 @@ fun NotificationCard(
     isRead: Boolean,
     onClick: () -> Unit,
 ) {
-    val containerColor by animateColorAsState(
-        targetValue = if (isRead) MaterialTheme.colorScheme.surfaceVariant
-        else MaterialTheme.colorScheme.primaryContainer,
-        animationSpec = tween(400),
-        label = "card_color",
-    )
-    val contentColor = if (isRead) MaterialTheme.colorScheme.onSurfaceVariant
-    else MaterialTheme.colorScheme.onPrimaryContainer
-
     val isHighPriority = notification.type in NotificationType.highPriority
 
-    Card(
+    val cardBg = if (isRead)
+        Brush.verticalGradient(listOf(Color(0xFFF8F5F0), Color(0xFFF2ECE4)))
+    else
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.95f),
+                Color.White.copy(alpha = 0.82f)
+            )
+        )
+
+    val cardBorder = if (isRead)
+        Brush.verticalGradient(
+            listOf(
+                WarmGray200.copy(alpha = 0.55f),
+                WarmGray200.copy(alpha = 0.25f)
+            )
+        )
+    else if (isHighPriority)
+        Brush.linearGradient(listOf(Gold.copy(alpha = 0.65f), Gold.copy(alpha = 0.28f)))
+    else
+        Brush.linearGradient(
+            listOf(
+                Gold.copy(alpha = 0.40f),
+                Gold.copy(alpha = 0.14f),
+                Color.White.copy(alpha = 0.50f)
+            )
+        )
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isRead) 0.dp else if (isHighPriority) 4.dp else 2.dp,
-        ),
+            .height(IntrinsicSize.Min)
+            .shadow(
+                elevation = if (isRead) 0.dp else if (isHighPriority) 6.dp else 2.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = Gold.copy(alpha = if (isRead) 0f else 0.12f),
+                spotColor = Gold.copy(alpha = if (isRead) 0f else 0.08f),
+            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(cardBg)
+            .border(0.8.dp, cardBorder, RoundedCornerShape(18.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
     ) {
-        // High-priority top accent strip
-        if (isHighPriority && !isRead) {
+        // Gold left accent strip — unread cards only
+        if (!isRead) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .width(3.5.dp)
+                    .fillMaxHeight()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                if (isHighPriority) Gold else Gold.copy(alpha = 0.88f),
+                                GoldDeep.copy(alpha = if (isHighPriority) 0.92f else 0.58f),
+                            )
+                        )
+                    )
             )
         }
 
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.Top,
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(
+                    start = if (isRead) 14.dp else 11.dp,
+                    end = 14.dp,
+                    top = if (isHighPriority && !isRead) 0.dp else 14.dp,
+                    bottom = 14.dp,
+                ),
         ) {
-            NotificationIcon(
-                type = notification.type,
-                tint = contentColor,
-                isRead = isRead,
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = notification.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (isRead) FontWeight.Normal else FontWeight.SemiBold,
-                        color = contentColor,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (!isRead) {
-                        BadgedBox(badge = { Badge() }) {}
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Read",
-                            modifier = Modifier.size(14.dp),
-                            tint = contentColor.copy(alpha = 0.3f),
+            // High-priority gold banner across the top
+            if (isHighPriority && !isRead) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(Brush.horizontalGradient(listOf(Gold, GoldDeep, Gold)))
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Notification type icon inside champagne circle
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isRead)
+                                Brush.radialGradient(
+                                    listOf(Color(0xFFF0EBE3), Color(0xFFE8E0D6).copy(alpha = 0.8f))
+                                )
+                            else
+                                Brush.radialGradient(
+                                    listOf(ChampagneLight, Champagne.copy(alpha = 0.72f))
+                                )
                         )
-                    }
+                        .border(
+                            width = 0.8.dp,
+                            color = if (isRead) WarmGray200.copy(alpha = 0.55f) else Gold.copy(alpha = 0.32f),
+                            shape = CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NotifTypeIcon(
+                        type = notification.type,
+                        tint = if (isRead) WarmGray400 else Gold,
+                    )
                 }
 
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = notification.body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor.copy(alpha = if (isRead) 0.75f else 1f),
-                )
-                Spacer(Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (notification.senderName.isNotBlank()) {
+                // Text content
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            text = notification.senderName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = contentColor.copy(alpha = 0.65f),
+                            text = notification.title,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = if (isRead) FontWeight.Normal else FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                            ),
+                            color = if (isRead) WarmGray500 else WarmGray800,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (!isRead) {
+                            Spacer(Modifier.width(8.dp))
+                            // Gold unread dot
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(Gold)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = notification.body,
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                        color = if (isRead) WarmGray400 else WarmGray600,
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    // Sender + timestamp row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (notification.senderName.isNotBlank()) {
+                            Text(
+                                text = notification.senderName,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = if (isRead) WarmGray300 else WarmGray400,
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            text = formatTimestamp(notification.createdAt),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = if (isRead) WarmGray300 else WarmGray400,
                         )
                     }
-                    Text(
-                        text = formatTimestamp(notification.createdAt),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor.copy(alpha = 0.55f),
-                    )
                 }
             }
         }
     }
 }
 
-// ── UnreadBadge ───────────────────────────────────────────────────────────────
+// ── Unread badge / pill ───────────────────────────────────────────────────────
 
 @Composable
 fun UnreadBadge(count: Int, modifier: Modifier = Modifier) {
     if (count <= 0) return
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.error,
-        tonalElevation = 2.dp,
+    UnreadPill(count = count, modifier = modifier)
+}
+
+@Composable
+private fun UnreadPill(count: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.horizontalGradient(listOf(Gold, GoldDeep)))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = if (count > 99) "99+" else count.toString(),
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onError,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = Color.White,
         )
     }
 }
 
-// ── AnnouncementComposer ──────────────────────────────────────────────────────
+// ── Announcement Composer ─────────────────────────────────────────────────────
 
 @Composable
 fun AnnouncementComposer(
@@ -330,16 +529,46 @@ fun AnnouncementComposer(
 ) {
     AlertDialog(
         onDismissRequest = { if (!isSending) onDismiss() },
-        icon = { Icon(Icons.Default.Campaign, contentDescription = null) },
-        title = { Text("Send Announcement") },
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(ChampagneLight, Champagne.copy(alpha = 0.65f))
+                        )
+                    )
+                    .border(0.8.dp, Gold.copy(alpha = 0.28f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Campaign,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Send Announcement",
+                style = TextStyle(
+                    fontFamily = DancingScriptN,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 24.sp,
+                    color = WarmGray800,
+                ),
+            )
+        },
         text = {
             Column {
                 Text(
-                    text = "Announcements are sent as push notifications to all guests.",
+                    text = "This will be sent as a push notification to all wedding guests.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = WarmGray400,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = title,
                     onValueChange = onTitle,
@@ -348,6 +577,12 @@ fun AnnouncementComposer(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isSending,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = WarmGray200,
+                        focusedLabelColor = GoldDeep,
+                        unfocusedLabelColor = WarmGray400,
+                    ),
                 )
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
@@ -358,27 +593,50 @@ fun AnnouncementComposer(
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 5,
                     enabled = !isSending,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = WarmGray200,
+                        focusedLabelColor = GoldDeep,
+                        unfocusedLabelColor = WarmGray400,
+                    ),
                 )
                 if (error != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         text = error,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = Color(0xFFBA3A3A),
                     )
                 }
             }
         },
         confirmButton = {
             if (isSending) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Gold,
+                    strokeWidth = 2.dp,
+                )
             } else {
-                TextButton(onClick = onSend, enabled = canSend) { Text("Send") }
+                TextButton(onClick = onSend, enabled = canSend) {
+                    Text(
+                        text = "Send",
+                        color = if (canSend) GoldDeep else WarmGray300,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSending) { Text("Cancel") }
+            TextButton(onClick = onDismiss, enabled = !isSending) {
+                Text(text = "Cancel", color = WarmGray400)
+            }
         },
+        containerColor = Ivory,
+        iconContentColor = Gold,
+        titleContentColor = WarmGray800,
+        textContentColor = WarmGray500,
+        shape = RoundedCornerShape(24.dp),
     )
 }
 
@@ -386,16 +644,35 @@ fun AnnouncementComposer(
 
 @Composable
 private fun DateSectionHeader(label: String) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(vertical = 6.dp),
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.sp,
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = WarmGray400,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(
+                    Brush.horizontalGradient(listOf(WarmGray200, Color.Transparent))
+                ),
+        )
+    }
 }
 
 @Composable
-private fun NotificationIcon(type: String, tint: Color, isRead: Boolean) {
+private fun NotifTypeIcon(type: String, tint: Color) {
     val icon: ImageVector = when (type) {
         NotificationType.WEDDING_UPDATE -> Icons.Default.Update
         NotificationType.ANNOUNCEMENT -> Icons.Default.Campaign
@@ -410,33 +687,93 @@ private fun NotificationIcon(type: String, tint: Color, isRead: Boolean) {
     Icon(
         imageVector = icon,
         contentDescription = null,
-        modifier = Modifier.size(22.dp),
-        tint = tint.copy(alpha = if (isRead) 0.55f else 1f),
+        modifier = Modifier.size(18.dp),
+        tint = tint,
     )
 }
 
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.Notifications,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-            )
-            Spacer(Modifier.height(16.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                ChampagneLight.copy(alpha = 0.88f),
+                                Champagne.copy(alpha = 0.42f)
+                            )
+                        )
+                    )
+                    .border(1.dp, Gold.copy(alpha = 0.22f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = Gold.copy(alpha = 0.55f),
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
             Text(
-                text = "No notifications yet",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "All quiet here",
+                style = TextStyle(
+                    fontFamily = DancingScriptN,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 26.sp,
+                    color = WarmGray800,
+                ),
+                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(6.dp))
+
+            Spacer(Modifier.height(8.dp))
+
             Text(
-                text = "Wedding updates and important moments\nwill appear here.",
+                text = "Wedding updates and important\nmoments will appear here",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                color = WarmGray400,
+                textAlign = TextAlign.Center,
             )
+
+            Spacer(Modifier.height(14.dp))
+
+            // Gold ornamental divider
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(32.dp)
+                        .height(0.5.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color.Transparent, Gold.copy(alpha = 0.35f))
+                            )
+                        )
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("✦", fontSize = 8.sp, color = Gold.copy(alpha = 0.45f))
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .width(32.dp)
+                        .height(0.5.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Gold.copy(alpha = 0.35f), Color.Transparent)
+                            )
+                        )
+                )
+            }
         }
     }
 }
@@ -450,7 +787,7 @@ private fun formatTimestamp(millis: Long): String {
 
 @androidx.compose.ui.tooling.preview.Preview(
     showBackground = true,
-    name = "Notification Card – Announcement"
+    name = "Notification Card – Announcement (Unread)"
 )
 @Composable
 private fun NotificationCardAnnouncementPreview() {
@@ -471,7 +808,7 @@ private fun NotificationCardAnnouncementPreview() {
 
 @androidx.compose.ui.tooling.preview.Preview(
     showBackground = true,
-    name = "Notification Card – Photo Like"
+    name = "Notification Card – Photo Like (Read)"
 )
 @Composable
 private fun NotificationCardPhotoLikePreview() {

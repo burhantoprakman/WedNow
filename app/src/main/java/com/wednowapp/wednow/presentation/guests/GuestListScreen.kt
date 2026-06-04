@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -129,6 +130,7 @@ import com.wednowapp.wednow.ui.theme.WarmWhite
 @Composable
 fun GuestListScreen(
     onBack: () -> Unit,
+    onNavigateToDm: (guestId: String) -> Unit = {},
     viewModel: GuestListViewModel = hiltViewModel(),
 ) {
     val guests by viewModel.guests.collectAsStateWithLifecycle()
@@ -224,11 +226,17 @@ fun GuestListScreen(
                                 val isCurrentGroup = guestList
                                     .find { it.id == currentGuest?.id }
                                     ?.groupId == group.id
+                                val groupGuests = remember(guestList, group.id) {
+                                    guestList.filter { it.groupId == group.id }
+                                }
                                 GuestGroupCard(
                                     group = group,
                                     expanded = group.id in viewModel.expandedIds,
                                     isCurrentGroup = isCurrentGroup,
                                     isPrivileged = isPrivileged,
+                                    groupGuests = groupGuests,
+                                    currentGuestId = currentGuest?.id,
+                                    onNavigateToDm = onNavigateToDm,
                                     onToggle = { viewModel.toggleExpand(group.id) },
                                     onShare = { shareInvitation(context, group) },
                                     onShowQr = { gatedAction { viewModel.showQr(group) } },
@@ -252,6 +260,7 @@ fun GuestListScreen(
                                 IndividualGuestCard(
                                     guest = guest,
                                     isCurrentUser = guest.id == currentGuest?.id,
+                                    onNavigateToDm = onNavigateToDm,
                                     modifier = Modifier.padding(
                                         horizontal = Spacing.screenHorizontal,
                                         vertical = 3.dp,
@@ -563,6 +572,9 @@ private fun GuestGroupCard(
     expanded: Boolean,
     isCurrentGroup: Boolean,
     isPrivileged: Boolean,
+    groupGuests: List<Guest>,
+    currentGuestId: String?,
+    onNavigateToDm: (String) -> Unit,
     onToggle: () -> Unit,
     onShare: () -> Unit,
     onShowQr: () -> Unit,
@@ -659,7 +671,15 @@ private fun GuestGroupCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         group.members.forEach { member ->
-                            MemberRsvpRow(member = member)
+                            val matchedGuest = groupGuests.find {
+                                it.name.trim().equals(member.name.trim(), ignoreCase = true)
+                            }
+                            MemberRsvpRow(
+                                member = member,
+                                matchedGuest = matchedGuest,
+                                currentGuestId = currentGuestId,
+                                onNavigateToDm = onNavigateToDm,
+                            )
                         }
                     }
 
@@ -689,6 +709,7 @@ private fun GuestGroupCard(
 private fun IndividualGuestCard(
     guest: Guest,
     isCurrentUser: Boolean,
+    onNavigateToDm: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -734,6 +755,11 @@ private fun IndividualGuestCard(
                 Spacer(Modifier.height(3.dp))
                 RSVPBadge(rsvpStatus = guest.rsvpStatus)
             }
+
+            if (!isCurrentUser && guest.id.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                DmIconButton(onClick = { onNavigateToDm(guest.id) })
+            }
         }
     }
 }
@@ -741,7 +767,12 @@ private fun IndividualGuestCard(
 // ── Member row with RSVP ──────────────────────────────────────────────────────
 
 @Composable
-private fun MemberRsvpRow(member: GuestMember) {
+private fun MemberRsvpRow(
+    member: GuestMember,
+    matchedGuest: Guest? = null,
+    currentGuestId: String? = null,
+    onNavigateToDm: (String) -> Unit = {},
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -765,6 +796,31 @@ private fun MemberRsvpRow(member: GuestMember) {
             color = WarmGray400,
         )
         RSVPBadge(rsvpStatus = member.rsvpStatus)
+        if (matchedGuest != null && matchedGuest.id != currentGuestId) {
+            DmIconButton(onClick = { onNavigateToDm(matchedGuest.id) })
+        }
+    }
+}
+
+// ── DM icon button ────────────────────────────────────────────────────────────
+
+@Composable
+private fun DmIconButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(ChampagneLight)
+            .border(0.7.dp, Gold.copy(alpha = 0.30f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Chat,
+            contentDescription = "Send message",
+            tint = GoldDeep,
+            modifier = Modifier.size(14.dp),
+        )
     }
 }
 
@@ -1603,6 +1659,9 @@ private fun GuestListGroupsPreview() {
                         expanded = group.id == "grp1",
                         isCurrentGroup = group.id == "grp1",
                         isPrivileged = true,
+                        groupGuests = emptyList(),
+                        currentGuestId = null,
+                        onNavigateToDm = {},
                         onToggle = {},
                         onShare = {},
                         onShowQr = {},

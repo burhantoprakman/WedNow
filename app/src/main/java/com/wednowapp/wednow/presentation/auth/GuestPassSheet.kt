@@ -1,8 +1,11 @@
 package com.wednowapp.wednow.presentation.auth
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -69,6 +72,7 @@ import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import com.wednowapp.wednow.R
 import com.wednowapp.wednow.ui.theme.Champagne
 import com.wednowapp.wednow.ui.theme.ChampagneLight
@@ -136,14 +140,18 @@ fun GuestPassSheet(
     userEmail: String?,
     userInitial: Char?,
     guestRole: String = "guest",
+    unreadNotificationCount: Int = 0,
     onDismiss: () -> Unit,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onNavigateToRSVP: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     onPrivacyPolicy: () -> Unit = {},
     onTermsAndConditions: () -> Unit = {},
     onContactSupport: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
 
     // Notification permission state (Android 13+)
     var hasNotifPermission by remember {
@@ -154,6 +162,9 @@ fun GuestPassSheet(
             } else true
         )
     }
+    // Track if we've already shown the system dialog (to distinguish first-time from permanently denied)
+    var hasAskedPermission by remember { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasNotifPermission = granted }
@@ -211,6 +222,28 @@ fun GuestPassSheet(
 
             Spacer(Modifier.height(32.dp))
 
+            // ── My Wedding ────────────────────────────────────────────────────
+            PassSectionLabel("My Wedding")
+            Spacer(Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoGlassCard(
+                    title = "RSVP",
+                    subtitle = "Confirm your attendance",
+                    onClick = onNavigateToRSVP,
+                )
+                InfoGlassCard(
+                    title = "Notifications",
+                    subtitle = if (unreadNotificationCount > 0)
+                        "$unreadNotificationCount unread update${if (unreadNotificationCount > 1) "s" else ""}"
+                    else "Wedding updates & alerts",
+                    badge = unreadNotificationCount,
+                    onClick = onNavigateToNotifications,
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
+
             // ── Notifications ─────────────────────────────────────────────────
             PassSectionLabel("Notifications")
             Spacer(Modifier.height(12.dp))
@@ -220,23 +253,36 @@ fun GuestPassSheet(
                 NotifPermissionBanner(
                     onRequestPermission = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            val canShowRationale = activity?.let {
+                                ActivityCompat.shouldShowRequestPermissionRationale(
+                                    it, Manifest.permission.POST_NOTIFICATIONS
+                                )
+                            } ?: false
+                            // After first ask with no rationale = permanently denied → open settings
+                            if (hasAskedPermission && !canShowRationale) {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                    }
+                                )
+                            } else {
+                                hasAskedPermission = true
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }
                     },
                 )
                 Spacer(Modifier.height(8.dp))
             }
 
-            NotifTypeExpandableCard(
-                hasPermission = hasNotifPermission,
-                notifMap = notifMap,
-                onRequestPermission = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                },
-                onToggle = { type -> notifMap[type] = !(notifMap[type] ?: true) },
-            )
+            if (hasNotifPermission) {
+                NotifTypeExpandableCard(
+                    hasPermission = true,
+                    notifMap = notifMap,
+                    onRequestPermission = {},
+                    onToggle = { type -> notifMap[type] = !(notifMap[type] ?: true) },
+                )
+            }
 
             Spacer(Modifier.height(32.dp))
 
@@ -252,12 +298,12 @@ fun GuestPassSheet(
                 )
                 InfoGlassCard(
                     title = "Terms & Conditions",
-                    subtitle = "Guidelines for using WedNow",
+                    subtitle = "Guidelines for using Maritsa",
                     onClick = onTermsAndConditions,
                 )
                 InfoGlassCard(
                     title = "Contact Support",
-                    subtitle = "Reach out to the WedNow team",
+                    subtitle = "Reach out to the Maritsa team",
                     onClick = onContactSupport,
                 )
             }
@@ -525,7 +571,7 @@ private fun NotifPermissionBanner(onRequestPermission: () -> Unit) {
                     color = WarmGray800
                 )
                 Text(
-                    "Tap to allow WedNow to send you updates",
+                    "Tap to allow Maritsa to send you updates",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 11.sp,
                         letterSpacing = 0.1.sp
@@ -744,6 +790,7 @@ private fun InfoGlassCard(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
+    badge: Int = 0,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -821,6 +868,27 @@ private fun InfoGlassCard(
                     ),
                     color = WarmGray400,
                 )
+            }
+
+            // Badge count (e.g. unread notifications)
+            if (badge > 0) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(Gold.copy(alpha = 0.88f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (badge > 9) "9+" else "$badge",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = Color(0xFF3D2A18),
+                    )
+                }
             }
 
             // Animated arrow in a champagne circle
