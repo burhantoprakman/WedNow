@@ -1,19 +1,34 @@
 package com.wednowapp.wednow.presentation.auth
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -23,7 +38,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wednowapp.wednow.R
-import com.wednowapp.wednow.ui.theme.*
+import com.wednowapp.wednow.ui.theme.Gold
+import com.wednowapp.wednow.ui.theme.GoldDeep
+import com.wednowapp.wednow.ui.theme.Ivory
+import com.wednowapp.wednow.ui.theme.Spacing
+import com.wednowapp.wednow.ui.theme.WarmGray100
+import com.wednowapp.wednow.ui.theme.WarmGray200
+import com.wednowapp.wednow.ui.theme.WarmGray400
+import com.wednowapp.wednow.ui.theme.WarmGray500
+import com.wednowapp.wednow.ui.theme.WarmGray800
+import com.wednowapp.wednow.ui.theme.WarmWhite
 
 private val _acctGfProvider = GoogleFont.Provider(
     providerAuthority = "com.google.android.gms.fonts",
@@ -43,8 +67,8 @@ fun AccountMenuSheet(
     val authState by authViewModel.authState.collectAsState()
     val isLoading by authViewModel.signInLoading.collectAsState()
     val error by authViewModel.signInError.collectAsState()
-    val activity = LocalContext.current as? Activity
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val activity = LocalActivity.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -73,9 +97,12 @@ fun AccountMenuSheet(
 
             if (authState != null) {
                 // ── Authenticated state ───────────────────────────────────────
+                // Capture as local val so Kotlin can smart-cast and we avoid repeated
+                // !! on a mutable compose state that can't be smart-cast directly.
+                val state = authState
 
                 // Avatar circle with initial
-                val initial = authState!!.displayName?.firstOrNull()?.uppercaseChar() ?: '?'
+                val initial = state?.displayName?.firstOrNull()?.uppercaseChar() ?: '?'
                 Box(
                     modifier = Modifier
                         .size(72.dp)
@@ -98,16 +125,16 @@ fun AccountMenuSheet(
                 Spacer(Modifier.height(Spacing.sm))
 
                 Text(
-                    text = authState!!.displayName ?: "Guest",
+                    text = state?.displayName ?: "Guest",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = WarmGray800,
                     textAlign = TextAlign.Center,
                 )
 
-                if (!authState!!.email.isNullOrBlank()) {
+                if (state?.email.isNullOrBlank()) {
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = authState!!.email!!,
+                        text = state?.email.orEmpty(),
                         style = MaterialTheme.typography.bodySmall,
                         color = WarmGray400,
                         textAlign = TextAlign.Center,
@@ -270,7 +297,7 @@ fun AccountMenuSheet(
 
                 if (!error.isNullOrBlank()) {
                     Text(
-                        text = error!!,
+                        text = error.orEmpty(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center,

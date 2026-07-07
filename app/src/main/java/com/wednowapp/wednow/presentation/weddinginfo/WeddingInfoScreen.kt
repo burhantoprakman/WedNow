@@ -21,6 +21,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,8 +82,12 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -105,6 +110,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -320,7 +327,10 @@ private fun WeddingInfoContent(
 
         ActiveEditor.VENUE -> VenueEditorSheet(
             current = wedding.location,
-            onUpdate = { onUpdateDraft(wedding.copy(location = it)) },
+            currentName = wedding.venueName,
+            onUpdate = { location, name ->
+                onUpdateDraft(wedding.copy(location = location, venueName = name))
+            },
             onDismiss = { activeEditor = null },
         )
 
@@ -691,24 +701,34 @@ private fun DateEditorSheet(
 @Composable
 private fun VenueEditorSheet(
     current: String,
-    onUpdate: (String) -> Unit,
+    currentName: String,
+    onUpdate: (location: String, name: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var text by remember { mutableStateOf(current) }
+    var name by remember { mutableStateOf(currentName) }
+    var address by remember { mutableStateOf(current) }
 
     ElegantBottomSheetEditor(
         title = "Venue",
         subtitle = "Where will the magic happen?",
         onDismiss = {
-            onUpdate(text)
+            onUpdate(address, name)
             onDismiss()
         },
     ) {
         EditorTextField(
-            value = text,
-            onValueChange = { text = it; onUpdate(it) },
-            label = "Location",
-            placeholder = "e.g. The Grand Ballroom, Istanbul",
+            value = name,
+            onValueChange = { name = it; onUpdate(address, it) },
+            label = "Venue Name",
+            placeholder = "e.g. The Grand Ballroom",
+            singleLine = true,
+        )
+        Spacer(Modifier.height(Spacing.md))
+        EditorTextField(
+            value = address,
+            onValueChange = { address = it; onUpdate(it, name) },
+            label = "Full Address",
+            placeholder = "e.g. Çırağan Cd. 32, Istanbul",
             singleLine = false,
         )
     }
@@ -1275,6 +1295,104 @@ private fun EditableChipGroup(
     }
 }
 
+// ── Timeline helpers ──────────────────────────────────────────────────────────
+
+private val legacyIconNames = setOf(
+    "groups", "wine_bar", "favorite", "local_bar", "restaurant",
+    "music_note", "cake", "celebration", "nights_stay", "calendar", "schedule",
+)
+
+private fun iconNameToEmoji(iconName: String): String? =
+    if (iconName.isBlank() || iconName.lowercase() in legacyIconNames) null else iconName
+
+private fun formatEventTime(hour: Int, minute: Int): String {
+    val amPm = if (hour < 12) "AM" else "PM"
+    val displayHour = when {
+        hour == 0 -> 12; hour > 12 -> hour - 12; else -> hour
+    }
+    return "$displayHour:${minute.toString().padStart(2, '0')} $amPm"
+}
+
+private fun parseEventTime(timeStr: String): Pair<Int, Int> = try {
+    val clean = timeStr.trim().uppercase()
+    val isPm = clean.contains("PM")
+    val isAm = clean.contains("AM")
+    val digits = clean.replace("AM", "").replace("PM", "").trim()
+    val parts = digits.split(":")
+    val h = parts[0].trim().toInt()
+    val m = if (parts.size > 1) parts[1].trim().toInt() else 0
+    val h24 = when {
+        isPm && h != 12 -> h + 12; isAm && h == 12 -> 0; else -> h
+    }
+    Pair(h24.coerceIn(0, 23), m.coerceIn(0, 59))
+} catch (_: Exception) {
+    Pair(14, 0)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EventTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = false,
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Card(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Select Time",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = WarmGray800,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                )
+                TimePicker(
+                    state = state,
+                    colors = TimePickerDefaults.colors(
+                        clockDialColor = ChampagneLight,
+                        selectorColor = Gold,
+                        containerColor = Color.White,
+                        timeSelectorSelectedContainerColor = Gold,
+                        timeSelectorUnselectedContainerColor = WarmGray100,
+                        timeSelectorSelectedContentColor = Color.White,
+                        timeSelectorUnselectedContentColor = WarmGray700,
+                    ),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = WarmGray400)
+                    }
+                    TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                        Text("Confirm", color = Gold, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Timeline editor ───────────────────────────────────────────────────────────
 
 @Composable
@@ -1363,6 +1481,7 @@ private fun TimelineEditorSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditableTimelineCard(
     event: TimelineEventData,
@@ -1374,11 +1493,31 @@ private fun EditableTimelineCard(
     onMoveDown: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    val emojiSuggestions = remember {
+        listOf("💍", "🥂", "🍽️", "🎂", "💃", "🎉", "🌙", "📷", "🎵", "✨", "🎶", "🌸")
+    }
+
+    val displayEmoji = iconNameToEmoji(event.iconName)
 
     val statusColor = when (event.status) {
         "current" -> BlushDeep
         "completed" -> Gold.copy(alpha = 0.8f)
         else -> WarmGray300
+    }
+
+    if (showTimePicker) {
+        val (initH, initM) = parseEventTime(event.time)
+        EventTimePickerDialog(
+            initialHour = initH,
+            initialMinute = initM,
+            onDismiss = { showTimePicker = false },
+            onConfirm = { h, m ->
+                onUpdate(event.copy(time = formatEventTime(h, m)))
+                showTimePicker = false
+            },
+        )
     }
 
     Column(
@@ -1388,6 +1527,7 @@ private fun EditableTimelineCard(
             .background(Color.White)
             .border(0.5.dp, WarmGray100, RoundedCornerShape(16.dp)),
     ) {
+        // ── Collapsed header row ──────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1402,6 +1542,11 @@ private fun EditableTimelineCard(
                     .size(10.dp)
                     .background(statusColor, CircleShape),
             )
+
+            // Emoji (when available)
+            if (displayEmoji != null) {
+                Text(displayEmoji, fontSize = 16.sp, lineHeight = 18.sp)
+            }
 
             // Time badge
             Box(
@@ -1434,9 +1579,7 @@ private fun EditableTimelineCard(
                     enabled = index > 0
                 ) {
                     Icon(
-                        Icons.Default.KeyboardArrowUp,
-                        null,
-                        Modifier.size(14.dp),
+                        Icons.Default.KeyboardArrowUp, null, Modifier.size(14.dp),
                         if (index > 0) WarmGray400 else WarmGray100
                     )
                 }
@@ -1446,9 +1589,7 @@ private fun EditableTimelineCard(
                     enabled = index < total - 1
                 ) {
                     Icon(
-                        Icons.Default.KeyboardArrowDown,
-                        null,
-                        Modifier.size(14.dp),
+                        Icons.Default.KeyboardArrowDown, null, Modifier.size(14.dp),
                         if (index < total - 1) WarmGray400 else WarmGray100
                     )
                 }
@@ -1460,12 +1601,11 @@ private fun EditableTimelineCard(
 
             Icon(
                 if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                null,
-                Modifier.size(16.dp),
-                WarmGray300
+                null, Modifier.size(16.dp), WarmGray300,
             )
         }
 
+        // ── Expanded edit form ────────────────────────────────────────────────
         AnimatedVisibility(
             visible = expanded,
             enter = expandVertically(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(),
@@ -1478,13 +1618,62 @@ private fun EditableTimelineCard(
                     .padding(bottom = Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                // Emoji picker
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Emoji",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = WarmGray400
+                        )
+                        if (displayEmoji != null) {
+                            Text(displayEmoji, fontSize = 18.sp)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        emojiSuggestions.forEach { emoji ->
+                            val isSelected = event.iconName == emoji
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) Gold else WarmGray50)
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) Gold else WarmGray100,
+                                        CircleShape
+                                    )
+                                    .clickable { onUpdate(event.copy(iconName = emoji)) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(emoji, fontSize = 18.sp)
+                            }
+                        }
+                    }
                     OutlinedTextField(
-                        value = event.time,
-                        onValueChange = { onUpdate(event.copy(time = it)) },
-                        label = { Text("Time", style = MaterialTheme.typography.bodySmall) },
+                        value = event.iconName.let { if (iconNameToEmoji(it) != null) it else "" },
+                        onValueChange = { new ->
+                            val trimmed = new.trim()
+                            if (trimmed.isNotEmpty()) onUpdate(event.copy(iconName = trimmed))
+                        },
+                        label = {
+                            Text(
+                                "Custom emoji",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
                         singleLine = true,
-                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("✨", fontSize = 18.sp) },
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
@@ -1492,43 +1681,40 @@ private fun EditableTimelineCard(
                             focusedContainerColor = Color.White,
                             unfocusedContainerColor = Color.White,
                         ),
-                        textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 20.sp,
+                            color = WarmGray800,
+                        ),
                     )
-
-                    // Status picker
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            "Status",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = WarmGray400
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf("upcoming", "current", "completed").forEach { s ->
-                                val sel = event.status == s
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (sel) Gold else WarmGray100)
-                                        .clickable { onUpdate(event.copy(status = s)) }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                ) {
-                                    Text(
-                                        s.replaceFirstChar { it.uppercase() },
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        color = if (sel) Color.White else WarmGray500,
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
 
+                // Time picker trigger
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(WarmGray50)
+                        .border(1.dp, WarmGray100, RoundedCornerShape(12.dp))
+                        .clickable { showTimePicker = true }
+                        .padding(horizontal = Spacing.sm, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Default.Schedule, null, Modifier.size(15.dp), Gold)
+                        Text(
+                            event.time.ifBlank { "Set time" },
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (event.time.isBlank()) WarmGray300 else WarmGray800,
+                        )
+                    }
+                    Text("Change", style = MaterialTheme.typography.labelSmall, color = WarmGray400)
+                }
+
+                // Title
                 OutlinedTextField(
                     value = event.title,
                     onValueChange = { onUpdate(event.copy(title = it)) },
@@ -1545,6 +1731,7 @@ private fun EditableTimelineCard(
                     textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
                 )
 
+                // Description
                 OutlinedTextField(
                     value = event.description,
                     onValueChange = { onUpdate(event.copy(description = it)) },
@@ -1560,6 +1747,29 @@ private fun EditableTimelineCard(
                     ),
                     textStyle = MaterialTheme.typography.bodySmall.copy(color = WarmGray800),
                 )
+
+                // Status chips
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Status", style = MaterialTheme.typography.labelSmall, color = WarmGray400)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("upcoming", "current", "completed").forEach { s ->
+                            val sel = event.status == s
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (sel) Gold else WarmGray100)
+                                    .clickable { onUpdate(event.copy(status = s)) }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                            ) {
+                                Text(
+                                    s.replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = if (sel) Color.White else WarmGray500,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1726,12 +1936,22 @@ private fun VenueSection(wedding: Wedding, context: Context) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                wedding.location.ifBlank { "Venue TBA" },
+                wedding.venueName.ifBlank { wedding.location.ifBlank { "Venue TBA" } },
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = WarmGray800,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            if (wedding.venueName.isNotBlank() && wedding.location.isNotBlank()) {
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    wedding.location,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WarmGray400,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(2.dp))
             Text(
                 "Tap for directions",
@@ -2108,8 +2328,11 @@ private fun CompactScheduleRow(item: TimelineEventData, isFirst: Boolean, isLast
                 item.time,
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
                 color = if (isCurrent) Gold else WarmGray400,
-                modifier = Modifier.width(40.dp)
+                modifier = Modifier.width(52.dp)
             )
+            iconNameToEmoji(item.iconName)?.let { emoji ->
+                Text(emoji, fontSize = 12.sp, lineHeight = 14.sp)
+            }
             Text(
                 item.title,
                 style = MaterialTheme.typography.bodySmall.copy(

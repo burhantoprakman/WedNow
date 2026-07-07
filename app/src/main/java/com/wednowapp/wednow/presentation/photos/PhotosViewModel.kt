@@ -72,6 +72,20 @@ class PhotosViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = null)
 
     /**
+     * The photo shown in the "Featured Memory" hero slot.
+     * Picks the most-liked photo; if all like counts are zero, falls back to the most recent.
+     */
+    val featuredPhoto: StateFlow<WeddingPhoto?> = photos
+        .map { list ->
+            if (list.isNullOrEmpty()) null
+            else if (list.all { it.likedBy.isEmpty() })
+                list.maxByOrNull { it.timestamp }
+            else
+                list.maxByOrNull { it.likedBy.size }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = null)
+
+    /**
      * Photos uploaded by the current identity.
      * Works for both authenticated users and anonymous guests.
      */

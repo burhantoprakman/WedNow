@@ -14,7 +14,9 @@ import com.wednowapp.wednow.domain.model.GuestGroup
 import com.wednowapp.wednow.domain.model.GuestMember
 import com.wednowapp.wednow.domain.model.GuestRole
 import com.wednowapp.wednow.domain.model.MemberRole
+import com.wednowapp.wednow.domain.model.Wedding
 import com.wednowapp.wednow.domain.repository.GuestGroupRepository
+import com.wednowapp.wednow.domain.repository.WeddingRepository
 import com.wednowapp.wednow.domain.usecase.AddGuestGroupUseCase
 import com.wednowapp.wednow.domain.usecase.DeleteGuestGroupUseCase
 import com.wednowapp.wednow.domain.usecase.GetCurrentGuestUseCase
@@ -44,10 +46,14 @@ class GuestListViewModel @Inject constructor(
     private val updateGuestGroupUseCase: UpdateGuestGroupUseCase,
     private val deleteGuestGroupUseCase: DeleteGuestGroupUseCase,
     private val guestGroupRepository: GuestGroupRepository,
+    private val weddingRepository: WeddingRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     val weddingId: String = checkNotNull(savedStateHandle[Screen.GuestList.ARG])
+
+    private val _wedding = MutableStateFlow<Wedding?>(null)
+    val wedding: StateFlow<Wedding?> = _wedding.asStateFlow()
 
     // ── Read-only state ───────────────────────────────────────────────────────
 
@@ -109,6 +115,9 @@ class GuestListViewModel @Inject constructor(
     // ── Init ──────────────────────────────────────────────────────────────────
 
     init {
+        viewModelScope.launch {
+            _wedding.value = weddingRepository.getWeddingById(weddingId).getOrNull()
+        }
         viewModelScope.launch {
             val guest = getCurrentGuestUseCase(weddingId).first()
             _isAdmin.value = guest?.role == GuestRole.ADMIN || guest?.role == GuestRole.COADMIN

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,6 +7,13 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
 }
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+val placesApiKey: String = localProperties.getProperty("PLACES_API_KEY", "")
 
 android {
     namespace = "com.wednowapp.wednow"
@@ -21,6 +30,8 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "PLACES_API_KEY", "\"$placesApiKey\"")
+        manifestPlaceholders["PLACES_API_KEY"] = placesApiKey
     }
 
     buildTypes {
@@ -47,6 +58,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -57,6 +69,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.androidx.compose.foundation.layout)
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
@@ -103,6 +116,12 @@ dependencies {
 
     // Google Fonts
     implementation(libs.androidx.ui.text.google.fonts)
+
+    // Google Places
+    implementation(libs.google.places)
+
+    // Logging
+    implementation(libs.timber)
 
     // ── Unit testing ─────────────────────────────────────────────────────────
     testImplementation(libs.junit.jupiter.api)

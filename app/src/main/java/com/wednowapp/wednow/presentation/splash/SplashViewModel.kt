@@ -14,10 +14,12 @@ class SplashViewModel @Inject constructor(
     @ApplicationContext context: Context
 ) : ViewModel() {
 
-    val startDestination: String = when {
-        !OnboardingManager.isCompleted(context) -> Screen.Onboarding.route
-        WeddingSessionManager.getWeddingId(context) != null ->
-            Screen.WeddingHome.createRoute(WeddingSessionManager.getWeddingId(context)!!)
-        else -> Screen.CreateWedding.route
+    val startDestination: String = run {
+        val savedWeddingId = WeddingSessionManager.getWeddingId(context)
+        when {
+            !OnboardingManager.isCompleted(context) -> Screen.Onboarding.route
+            savedWeddingId != null -> Screen.WeddingHome.createRoute(savedWeddingId)
+            else -> Screen.CreateWedding.route
+        }
     }
 }

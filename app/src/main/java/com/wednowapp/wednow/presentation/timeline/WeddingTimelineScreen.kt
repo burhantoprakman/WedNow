@@ -121,7 +121,13 @@ data class TimelineEvent(
     val title: String,
     val description: String? = null,
     val icon: ImageVector,
+    val emoji: String = "",
     val status: EventStatus,
+)
+
+private val knownIconNames = setOf(
+    "groups", "wine_bar", "favorite", "local_bar", "restaurant",
+    "music_note", "cake", "celebration", "nights_stay", "calendar", "schedule",
 )
 
 private fun iconNameToVector(iconName: String): ImageVector = when (iconName.lowercase()) {
@@ -139,18 +145,22 @@ private fun iconNameToVector(iconName: String): ImageVector = when (iconName.low
     else -> Icons.Default.Celebration
 }
 
-private fun TimelineEventData.toTimelineEvent(id: Int): TimelineEvent = TimelineEvent(
-    id = id,
-    time = time,
-    title = title,
-    description = description.ifBlank { null },
-    icon = iconNameToVector(iconName),
-    status = when (status.lowercase()) {
-        "completed" -> EventStatus.COMPLETED
-        "current" -> EventStatus.CURRENT
-        else -> EventStatus.UPCOMING
-    },
-)
+private fun TimelineEventData.toTimelineEvent(id: Int): TimelineEvent {
+    val isLegacyIcon = iconName.lowercase() in knownIconNames
+    return TimelineEvent(
+        id = id,
+        time = time,
+        title = title,
+        description = description.ifBlank { null },
+        icon = iconNameToVector(iconName),
+        emoji = if (isLegacyIcon || iconName.isBlank()) "" else iconName,
+        status = when (status.lowercase()) {
+            "completed" -> EventStatus.COMPLETED
+            "current" -> EventStatus.CURRENT
+            else -> EventStatus.UPCOMING
+        },
+    )
+}
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -571,12 +581,20 @@ fun IndicatorColumn(
                 .align(Alignment.Center),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector        = if (isCompleted) Icons.Default.Check else event.icon,
-                contentDescription = null,
-                tint               = iconTint,
-                modifier           = Modifier.size(iconSize),
-            )
+            when {
+                isCompleted ->
+                    Icon(Icons.Default.Check, null, Modifier.size(iconSize), iconTint)
+
+                event.emoji.isNotEmpty() ->
+                    Text(
+                        text = event.emoji,
+                        fontSize = if (isCurrent) 11.sp else 9.sp,
+                        lineHeight = 14.sp,
+                    )
+
+                else ->
+                    Icon(event.icon, null, Modifier.size(iconSize), iconTint)
+            }
         }
     }
 }
@@ -659,6 +677,16 @@ fun EventCard(
                 }
 
                 Spacer(Modifier.height(5.dp))
+
+                // Emoji accent (non-legacy events)
+                if (event.emoji.isNotEmpty() && !isCompleted) {
+                    Text(
+                        text = event.emoji,
+                        fontSize = if (isCurrent) 22.sp else 18.sp,
+                        lineHeight = if (isCurrent) 28.sp else 24.sp,
+                        modifier = Modifier.padding(bottom = 2.dp),
+                    )
+                }
 
                 // Event title
                 Text(

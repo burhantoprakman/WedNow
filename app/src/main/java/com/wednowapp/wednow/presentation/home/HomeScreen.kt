@@ -746,8 +746,10 @@ private fun CountdownSection(dateMs: Long, modifier: Modifier = Modifier) {
         }
     }
 
-    val isZero =
-        countdown == null || countdown!!.run { days == 0L && hours == 0L && minutes == 0L && seconds == 0L }
+    // Capture as local val — `countdown` is mutable state, Kotlin can't smart-cast it directly.
+    val snapshot = countdown
+    val isZero = snapshot == null ||
+            snapshot.run { days == 0L && hours == 0L && minutes == 0L && seconds == 0L }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -761,7 +763,8 @@ private fun CountdownSection(dateMs: Long, modifier: Modifier = Modifier) {
                 textAlign = TextAlign.Center,
             )
         } else {
-            val cd = countdown!!
+            // snapshot is guaranteed non-null here (isZero is false only when snapshot != null)
+            val cd = snapshot ?: return
             Row(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.Center,
@@ -844,7 +847,7 @@ private fun WeddingDetailsRow(
             WeddingDetailCard(
                 icon = Icons.Default.LocationOn,
                 label = "Venue",
-                value = wedding.location.ifBlank { "TBA" },
+                value = wedding.venueName.ifBlank { wedding.location.ifBlank { "TBA" } },
                 gradient = Brush.linearGradient(listOf(Color(0xFFFAF9F7), Color(0xFFF3F1ED))),
                 iconTint = Color(0xFFC9A84C),
                 onClick = {

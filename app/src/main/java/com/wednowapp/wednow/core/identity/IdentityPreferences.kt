@@ -44,10 +44,10 @@ internal object IdentityPreferences {
             Identity(
                 identityId = id,
                 type = IdentityType.valueOf(
-                    prefs.getString(KEY_TYPE, IdentityType.GUEST.name)!!
+                    prefs.getString(KEY_TYPE, null) ?: IdentityType.GUEST.name
                 ),
                 provider = AuthProvider.valueOf(
-                    prefs.getString(KEY_PROVIDER, AuthProvider.NONE.name)!!
+                    prefs.getString(KEY_PROVIDER, null) ?: AuthProvider.NONE.name
                 ),
                 displayName = prefs.getString(KEY_DISPLAY_NAME, null),
                 email = prefs.getString(KEY_EMAIL, null),

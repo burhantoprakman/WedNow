@@ -7,7 +7,9 @@ import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +26,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -97,7 +98,6 @@ import com.wednowapp.wednow.ui.theme.Gold
 import com.wednowapp.wednow.ui.theme.GoldDeep
 import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
-import com.wednowapp.wednow.ui.theme.WarmGray100
 import com.wednowapp.wednow.ui.theme.WarmGray200
 import com.wednowapp.wednow.ui.theme.WarmGray300
 import com.wednowapp.wednow.ui.theme.WarmGray400
@@ -118,6 +118,7 @@ fun PhotosScreen(
 ) {
     val authViewModel = LocalAuthViewModel.current
     val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val featuredPhoto by viewModel.featuredPhoto.collectAsStateWithLifecycle()
     val myPhotos by viewModel.myPhotos.collectAsStateWithLifecycle()
     val uploadState by viewModel.uploadState.collectAsStateWithLifecycle()
     val deleteState by viewModel.deleteState.collectAsStateWithLifecycle()
@@ -171,9 +172,12 @@ fun PhotosScreen(
     ) {
         GalleryFeed(
             photos = photos,
+            featuredPhoto = featuredPhoto,
             myPhotos = myPhotos,
             currentGuestId = viewModel.currentGuestId,
             onBack = onBack,
+            uploadState = uploadState,
+            onAddMemory = ::requestUpload,
             onToggleLike = viewModel::toggleLike,
             onPhotoTap = { fullscreenPhoto = it },
             canEdit = viewModel::canEdit,
@@ -183,21 +187,12 @@ fun PhotosScreen(
             onDelete = viewModel::requestDelete,
         )
 
-        AddMemoryButton(
-            uploadState = uploadState,
-            onClick = ::requestUpload,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = Spacing.xl),
-        )
-
         SnackbarHost(
             hostState = snackbar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 100.dp),
+                .padding(bottom = Spacing.md),
         )
     }
 
@@ -248,9 +243,12 @@ fun PhotosScreen(
 @Composable
 private fun GalleryFeed(
     photos: List<WeddingPhoto>?,
+    featuredPhoto: WeddingPhoto?,
     myPhotos: List<WeddingPhoto>,
     currentGuestId: String,
     onBack: () -> Unit,
+    uploadState: UploadState,
+    onAddMemory: () -> Unit,
     onToggleLike: (photoId: String, isCurrentlyLiked: Boolean) -> Unit,
     onPhotoTap: (WeddingPhoto) -> Unit,
     canEdit: (WeddingPhoto) -> Boolean,
@@ -265,7 +263,7 @@ private fun GalleryFeed(
         contentPadding = PaddingValues(
             start = 12.dp,
             end = 12.dp,
-            bottom = 140.dp,
+            bottom = 32.dp,
         ),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -274,6 +272,8 @@ private fun GalleryFeed(
             GalleryHeader(
                 onBack = onBack,
                 photoCount = photos?.size ?: 0,
+                uploadState = uploadState,
+                onAddMemory = onAddMemory,
             )
         }
 
@@ -303,24 +303,26 @@ private fun GalleryFeed(
             }
 
             else -> {
+                val featured = featuredPhoto ?: photos.first()
+                val remaining = photos.filter { it.id != featured.id }
+
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    val photo = photos.first()
-                    val isLiked = photo.likedBy.contains(currentGuestId)
+                    val isLiked = featured.likedBy.contains(currentGuestId)
                     FeaturedMemoryCard(
-                        photo = photo,
+                        photo = featured,
                         isLiked = isLiked,
-                        onLike = { onToggleLike(photo.id, isLiked) },
-                        onTap = { onPhotoTap(photo) },
-                        canEdit = canEdit(photo),
-                        canDelete = canDelete(photo),
-                        isOwned = isOwned(photo),
-                        onEdit = { onEdit(photo) },
-                        onDelete = { onDelete(photo) },
+                        onLike = { onToggleLike(featured.id, isLiked) },
+                        onTap = { onPhotoTap(featured) },
+                        canEdit = canEdit(featured),
+                        canDelete = canDelete(featured),
+                        isOwned = isOwned(featured),
+                        onEdit = { onEdit(featured) },
+                        onDelete = { onDelete(featured) },
                     )
                 }
 
                 itemsIndexed(
-                    items = photos.drop(1),
+                    items = remaining,
                     key = { _, photo -> photo.id },
                 ) { _, photo ->
                     val isLiked = photo.likedBy.contains(currentGuestId)
@@ -344,27 +346,40 @@ private fun GalleryFeed(
 // ── Header ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GalleryHeader(onBack: () -> Unit, photoCount: Int) {
+private fun GalleryHeader(
+    onBack: () -> Unit,
+    photoCount: Int,
+    uploadState: UploadState,
+    onAddMemory: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
             .padding(vertical = Spacing.md),
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(WarmGray50)
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = WarmGray700,
-                modifier = Modifier.size(20.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(WarmGray50)
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = WarmGray700,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            HeaderAddMemoryButton(uploadState = uploadState, onClick = onAddMemory)
         }
 
         Spacer(Modifier.height(Spacing.lg))
@@ -1017,54 +1032,55 @@ private fun ElegantLikeButton(
     }
 }
 
-// ── Add Memory floating button ────────────────────────────────────────────────
+// ── Add Memory header button ──────────────────────────────────────────────────
 
 @Composable
-private fun AddMemoryButton(
+private fun HeaderAddMemoryButton(
     uploadState: UploadState,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val isUploading = uploadState is UploadState.Loading
-    val label = when {
-        uploadState is UploadState.Loading && uploadState.total > 1 ->
-            "Uploading ${uploadState.current}/${uploadState.total}…"
-
-        isUploading -> "Uploading…"
-        else -> "Add Memory"
-    }
 
     Surface(
         onClick = { if (!isUploading) onClick() },
-        modifier = modifier,
-        shape = RoundedCornerShape(32.dp),
-        color = if (isUploading) WarmGray300 else Gold,
-        shadowElevation = 14.dp,
+        shape = RoundedCornerShape(20.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            1.dp,
+            if (isUploading) WarmGray200 else Gold.copy(alpha = 0.65f),
+        ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 28.dp, vertical = 15.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (isUploading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(13.dp),
+                    color = WarmGray400,
+                    strokeWidth = 1.5.dp,
+                )
+                Text(
+                    text = if (uploadState is UploadState.Loading && uploadState.total > 1)
+                        "${uploadState.current}/${uploadState.total}"
+                    else "Uploading…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = WarmGray400,
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp),
+                    tint = GoldDeep,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = "Add Memory",
+                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.3.sp),
+                    color = GoldDeep,
                 )
             }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.5.sp),
-                color = Color.White,
-            )
         }
     }
 }

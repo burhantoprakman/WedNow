@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -70,15 +71,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -89,6 +96,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.zxing.BarcodeFormat
@@ -100,8 +108,11 @@ import com.wednowapp.wednow.domain.model.GuestMember
 import com.wednowapp.wednow.domain.model.GuestRole
 import com.wednowapp.wednow.domain.model.MemberRole
 import com.wednowapp.wednow.domain.model.RSVPStatus
+import com.wednowapp.wednow.domain.model.Wedding
 import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
 import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
+import com.wednowapp.wednow.presentation.share.RealInvitationCard
+import com.wednowapp.wednow.presentation.share.buildInvitationPdfBytes
 import com.wednowapp.wednow.ui.components.AvatarCircle
 import com.wednowapp.wednow.ui.theme.BlushDeep
 import com.wednowapp.wednow.ui.theme.BlushLight
@@ -124,6 +135,8 @@ import com.wednowapp.wednow.ui.theme.WarmGray600
 import com.wednowapp.wednow.ui.theme.WarmGray700
 import com.wednowapp.wednow.ui.theme.WarmGray800
 import com.wednowapp.wednow.ui.theme.WarmWhite
+import kotlinx.coroutines.launch
+import java.io.File
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -138,7 +151,11 @@ fun GuestListScreen(
     val guestGroupsById by viewModel.guestGroupsById.collectAsStateWithLifecycle()
     val isPrivileged by viewModel.isPrivileged.collectAsStateWithLifecycle()
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
+    val wedding by viewModel.wedding.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var activeShareGroup by remember { mutableStateOf<GuestGroup?>(null) }
+    val captureGraphicsLayer = rememberGraphicsLayer()
+    val captureScope = rememberCoroutineScope()
 
     // ── Auth gate ─────────────────────────────────────────────────────────────
     val authViewModel = LocalAuthViewModel.current
@@ -238,7 +255,7 @@ fun GuestListScreen(
                                     currentGuestId = currentGuest?.id,
                                     onNavigateToDm = onNavigateToDm,
                                     onToggle = { viewModel.toggleExpand(group.id) },
-                                    onShare = { shareInvitation(context, group) },
+                                    onShare = { activeShareGroup = group },
                                     onShowQr = { gatedAction { viewModel.showQr(group) } },
                                     onEdit = { gatedAction { viewModel.openEditSheet(group) } },
                                     onDelete = { gatedAction { viewModel.requestDelete(group) } },
@@ -299,13 +316,73 @@ fun GuestListScreen(
             )
         }
 
+        // ── Hidden invitation card — rendered in main window for reliable capture ──
+        val captureGroup = activeShareGroup
+        val captureWedding = wedding
+        if (captureGroup != null && captureWedding != null) {
+            val captureQr = rememberQrBitmap(captureGroup.invitationLink, size = 512)
+            if (captureQr != null) {
+                Box(modifier = Modifier.size(0.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .requiredWidth(400.dp)
+                            .graphicsLayer { alpha = 0.002f }
+                            .drawWithContent {
+                                captureGraphicsLayer.record { this@drawWithContent.drawContent() }
+                                drawLayer(captureGraphicsLayer)
+                            },
+                    ) {
+                        RealInvitationCard(
+                            wedding = captureWedding,
+                            weddingId = captureWedding.id,
+                            qrBitmap = captureQr,
+                            deepLinkUrl = captureGroup.invitationLink,
+                        )
+                    }
+                }
+            }
+        }
+
         // ── Dialogs & sheets ──────────────────────────────────────────────────
+
+        if (activeShareGroup != null && wedding != null) {
+            InvitationShareSheet(
+                wedding = wedding!!,
+                group = activeShareGroup!!,
+                onShare = {
+                    val group = activeShareGroup ?: return@InvitationShareSheet
+                    captureScope.launch {
+                        val bmp = captureGraphicsLayer.toImageBitmap().asAndroidBitmap()
+                        val uri =
+                            createGroupInvitationPdf(context, bmp, group.id, group.invitationLink)
+                        if (uri != null) {
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                putExtra(
+                                    Intent.EXTRA_SUBJECT,
+                                    "Wedding Invitation for ${group.familyName}"
+                                )
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Share Invitation"))
+                        }
+                        activeShareGroup = null
+                    }
+                },
+                onDismiss = { activeShareGroup = null },
+            )
+        }
 
         if (viewModel.qrTarget != null) {
             QrCodeDialog(
                 group = viewModel.qrTarget!!,
                 onDismiss = viewModel::dismissQr,
-                onShare = { shareInvitation(context, viewModel.qrTarget!!) },
+                onShare = {
+                    val g = viewModel.qrTarget!!
+                    viewModel.dismissQr()
+                    activeShareGroup = g
+                },
             )
         }
 
@@ -1533,28 +1610,25 @@ private fun DeleteConfirmDialog(
     )
 }
 
-// ── QR bitmap helper ──────────────────────────────────────────────────────────
+// ── QR bitmap helpers ─────────────────────────────────────────────────────────
+
+private fun generateQrBitmap(content: String, size: Int = 512): Bitmap? = runCatching {
+    val hints = mapOf(EncodeHintType.MARGIN to 1)
+    val bits = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size, hints)
+    Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).also { bmp ->
+        for (x in 0 until size) for (y in 0 until size) {
+            bmp.setPixel(
+                x,
+                y,
+                if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+            )
+        }
+    }
+}.getOrNull()
 
 @Composable
 private fun rememberQrBitmap(content: String, size: Int = 512): Bitmap? =
-    remember(content, size) {
-        runCatching {
-            val hints = mapOf(EncodeHintType.MARGIN to 1)
-            val writer = QRCodeWriter()
-            val bits = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
-            Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).also { bmp ->
-                for (x in 0 until size) {
-                    for (y in 0 until size) {
-                        bmp.setPixel(
-                            x,
-                            y,
-                            if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                        )
-                    }
-                }
-            }
-        }.getOrNull()
-    }
+    remember(content, size) { generateQrBitmap(content, size) }
 
 // ── Sharing helpers ───────────────────────────────────────────────────────────
 
@@ -1569,34 +1643,95 @@ private fun elegantTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = WarmGray700,
 )
 
-private fun shareInvitation(context: Context, group: GuestGroup) {
-    val memberNames = group.members
-        .filter { it.role == MemberRole.ADULT }
-        .joinToString(" & ") { it.name.substringBefore(" ") }
-        .ifBlank { group.familyName }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InvitationShareSheet(
+    wedding: Wedding,
+    group: GuestGroup,
+    onShare: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val qrBitmap = rememberQrBitmap(group.invitationLink, size = 512)
 
-    val text = buildString {
-        appendLine("💛 You're invited!")
-        appendLine()
-        appendLine("Dear $memberNames,")
-        appendLine("We would love to celebrate our special day with you.")
-        appendLine()
-        appendLine("Use your personal invitation link to RSVP:")
-        appendLine(group.invitationLink)
-        appendLine()
-        appendLine("Or enter code: ${group.inviteToken}")
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Ivory,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.screenHorizontal)
+                .navigationBarsPadding()
+                .padding(bottom = Spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Text(
+                text = "Invitation Preview",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray800,
+            )
+
+            // Preview only — capture happens in the main window (see hidden card above)
+            if (qrBitmap != null) {
+                RealInvitationCard(
+                    wedding = wedding,
+                    weddingId = wedding.id,
+                    qrBitmap = qrBitmap,
+                    deepLinkUrl = group.invitationLink,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = Gold,
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+
+            Button(
+                onClick = onShare,
+                enabled = qrBitmap != null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Gold,
+                    contentColor = Color.White,
+                    disabledContainerColor = WarmGray200,
+                ),
+            ) {
+                Icon(Icons.Default.Share, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(Spacing.sm))
+                Text("Share Invitation", style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(
-        Intent.createChooser(
-            intent,
-            "Wedding Invitation for ${group.familyName}"
-        )
-    )
 }
+
+private fun createGroupInvitationPdf(
+    context: Context,
+    bitmap: Bitmap,
+    groupId: String,
+    joinUrl: String,
+): android.net.Uri? = runCatching {
+    val pdfBytes = buildInvitationPdfBytes(bitmap, joinUrl) ?: return@runCatching null
+    val dir = File(context.cacheDir, "invitations").also { it.mkdirs() }
+    val file = File(dir, "invitation_$groupId.pdf")
+    file.writeBytes(pdfBytes)
+    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+}.getOrNull()
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 

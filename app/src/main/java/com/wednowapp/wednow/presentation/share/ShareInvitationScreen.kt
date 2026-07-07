@@ -343,7 +343,7 @@ private fun ShareInvitationContent(
 // ── Real invitation card
 
 @Composable
-private fun RealInvitationCard(
+internal fun RealInvitationCard(
     wedding: Wedding,
     weddingId: String,
     qrBitmap: Bitmap,
@@ -470,11 +470,11 @@ private fun RealInvitationCard(
                 if (wedding.location.isNotBlank()) {
                     InvitationLine(
                         label = "VENUE",
-                        value = wedding.location,
+                        value = wedding.venueName,
                     )
                 }
 
-                if (wedding.date != 0L || wedding.location.isNotBlank()) {
+                if (wedding.date != 0L || wedding.venueName.isNotBlank()) {
                     Spacer(Modifier.height(20.dp))
                     ThinDividerWithDiamond()
                     Spacer(Modifier.height(20.dp))

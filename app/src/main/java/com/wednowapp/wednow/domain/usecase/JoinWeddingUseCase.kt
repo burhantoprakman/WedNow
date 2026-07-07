@@ -1,7 +1,6 @@
 package com.wednowapp.wednow.domain.usecase
 
 import android.content.Context
-import android.util.Log
 import com.wednowapp.wednow.core.identity.IdentityManager
 import com.wednowapp.wednow.core.session.GuestSessionManager
 import com.wednowapp.wednow.core.session.WeddingSessionManager
@@ -13,6 +12,7 @@ import com.wednowapp.wednow.domain.repository.GuestRepository
 import com.wednowapp.wednow.domain.repository.MembershipRepository
 import com.wednowapp.wednow.domain.repository.WeddingRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import timber.log.Timber
 import javax.inject.Inject
 
 private const val TAG = "JoinWedding"
@@ -40,20 +40,20 @@ class JoinWeddingUseCase @Inject constructor(
 
         // 1 — inviteToken lookup
         val groupResult = guestGroupRepository.findGroupByInviteToken(code)
-        Log.d(
-            TAG, "inviteToken lookup '$code': success=${groupResult.isSuccess}, " +
+        Timber.tag(TAG).d(
+            "inviteToken lookup '$code': success=${groupResult.isSuccess}, " +
                     "group=${groupResult.getOrNull()?.id}, error=${groupResult.exceptionOrNull()?.message}"
         )
 
         val groupMatch = groupResult.getOrNull()
         if (groupMatch != null) {
             weddingId = groupMatch.weddingId
-            Log.d(TAG, "Joined via inviteToken → weddingId=$weddingId")
+            Timber.tag(TAG).d("Joined via inviteToken → weddingId=$weddingId")
         } else {
             // 2 — shortCode / weddingId fallback
             val shortCodeResult = weddingRepository.getWeddingByShortCode(code)
-            Log.d(
-                TAG, "shortCode lookup '$code': success=${shortCodeResult.isSuccess}, " +
+            Timber.tag(TAG).d(
+                "shortCode lookup '$code': success=${shortCodeResult.isSuccess}, " +
                         "wedding=${shortCodeResult.getOrNull()?.id}, " +
                         "error=${shortCodeResult.exceptionOrNull()?.message}"
             )
@@ -62,8 +62,8 @@ class JoinWeddingUseCase @Inject constructor(
                 ?: run {
                     // 3 — treat as raw weddingId (QR deep links)
                     val byIdResult = weddingRepository.getWeddingById(code)
-                    Log.d(
-                        TAG, "weddingId fallback '$code': success=${byIdResult.isSuccess}, " +
+                    Timber.tag(TAG).d(
+                        "weddingId fallback '$code': success=${byIdResult.isSuccess}, " +
                                 "error=${byIdResult.exceptionOrNull()?.message}"
                     )
                     byIdResult.getOrNull()

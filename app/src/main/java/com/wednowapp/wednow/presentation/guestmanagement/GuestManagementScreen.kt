@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.zxing.BarcodeFormat
@@ -112,6 +113,7 @@ import com.wednowapp.wednow.ui.theme.WarmGray600
 import com.wednowapp.wednow.ui.theme.WarmGray700
 import com.wednowapp.wednow.ui.theme.WarmGray800
 import com.wednowapp.wednow.ui.theme.WarmWhite
+import java.io.File
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -1311,26 +1313,23 @@ private fun EmptyGroupsState(isAdmin: Boolean, onAdd: () -> Unit) {
 
 // ── QR bitmap helper ──────────────────────────────────────────────────────────
 
+private fun generateQrBitmap(content: String, size: Int = 512): Bitmap? = runCatching {
+    val hints = mapOf(EncodeHintType.MARGIN to 1)
+    val bits = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size, hints)
+    Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).also { bmp ->
+        for (x in 0 until size) for (y in 0 until size) {
+            bmp.setPixel(
+                x,
+                y,
+                if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+            )
+        }
+    }
+}.getOrNull()
+
 @Composable
 private fun rememberQrBitmap(content: String, size: Int = 512): Bitmap? =
-    remember(content, size) {
-        runCatching {
-            val hints = mapOf(EncodeHintType.MARGIN to 1)
-            val writer = QRCodeWriter()
-            val bits = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
-            Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).also { bmp ->
-                for (x in 0 until size) {
-                    for (y in 0 until size) {
-                        bmp.setPixel(
-                            x,
-                            y,
-                            if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                        )
-                    }
-                }
-            }
-        }.getOrNull()
-    }
+    remember(content, size) { generateQrBitmap(content, size) }
 
 // ── Sharing helpers ───────────────────────────────────────────────────────────
 
@@ -1351,19 +1350,50 @@ private fun shareInvitation(context: Context, group: GuestGroup) {
         .joinToString(" & ") { it.name.substringBefore(" ") }
         .ifBlank { group.familyName }
 
-    val text = buildString {
-        appendLine("💛 You're invited!")
+    val caption = buildString {
+        appendLine("💛 You're invited, $memberNames!")
         appendLine()
-        appendLine("Dear $memberNames,")
         appendLine("We would love to celebrate our special day with you.")
         appendLine()
-        appendLine("Use your personal invitation link to RSVP:")
+        appendLine("Scan the QR code or use your personal link to RSVP:")
         appendLine(group.invitationLink)
-        appendLine()
-        appendLine("Or enter code: ${group.inviteToken}")
+        append("Code: ${group.inviteToken}")
     }
-    shareText(context, text, "Wedding Invitation for ${group.familyName}")
+
+    val qrBitmap = generateQrBitmap(group.invitationLink, size = 512)
+    val imageUri = qrBitmap?.let { saveGroupQrToCache(context, it, group.id) }
+
+    if (imageUri != null) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, imageUri)
+            putExtra(Intent.EXTRA_TEXT, caption)
+            putExtra(Intent.EXTRA_SUBJECT, "Wedding Invitation for ${group.familyName}")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Share Invitation"))
+    } else {
+        // Fallback to text if QR generation fails
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, caption)
+            putExtra(Intent.EXTRA_SUBJECT, "Wedding Invitation for ${group.familyName}")
+        }
+        context.startActivity(Intent.createChooser(intent, "Share Invitation"))
+    }
 }
+
+private fun saveGroupQrToCache(
+    context: Context,
+    bitmap: Bitmap,
+    groupId: String
+): android.net.Uri? =
+    runCatching {
+        val dir = File(context.cacheDir, "invitations").also { it.mkdirs() }
+        val file = File(dir, "qr_$groupId.png")
+        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }.getOrNull()
 
 private fun shareText(context: Context, text: String, title: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {

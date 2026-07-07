@@ -66,7 +66,8 @@ class PhotoStorageService @Inject constructor(
                     "Upload failed: Storage quota exceeded."
 
                 throwable.message?.contains("Cannot read", ignoreCase = true) == true ->
-                    throwable.message!!   // our own message — pass through as-is
+                    // message was checked non-null in the condition above; use ?: to be safe
+                    throwable.message ?: "Upload failed: cannot read the selected file."
 
                 else ->
                     "Upload failed. Please check your connection and try again."

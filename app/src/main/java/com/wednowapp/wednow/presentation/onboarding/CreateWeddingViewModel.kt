@@ -11,9 +11,12 @@ import androidx.lifecycle.viewModelScope
 import com.wednowapp.wednow.core.session.GuestSessionManager
 import com.wednowapp.wednow.core.session.WeddingSessionManager
 import com.wednowapp.wednow.data.remote.PhotoStorageService
+import com.wednowapp.wednow.data.remote.PlacesService
 import com.wednowapp.wednow.domain.model.DressCodeData
 import com.wednowapp.wednow.domain.model.MenuCourseData
 import com.wednowapp.wednow.domain.model.TimelineEventData
+import com.wednowapp.wednow.domain.model.VenuePlace
+import com.wednowapp.wednow.domain.model.VenueSuggestion
 import com.wednowapp.wednow.domain.usecase.CreateWeddingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,6 +37,7 @@ import javax.inject.Inject
 class CreateWeddingViewModel @Inject constructor(
     private val createWeddingUseCase: CreateWeddingUseCase,
     private val photoStorageService: PhotoStorageService,
+    private val placesService: PlacesService,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -79,9 +83,12 @@ class CreateWeddingViewModel @Inject constructor(
     private var selectedTimeMinute: Int = 0
 
     // ── Step 3: Venue ─────────────────────────────────────────────────────────
+    var venueQuery by mutableStateOf(""); private set
     var venue by mutableStateOf(""); private set
+    var venueSuggestions by mutableStateOf<List<VenueSuggestion>>(emptyList()); private set
+    var selectedVenue by mutableStateOf<VenuePlace?>(null); private set
     var isVenueSearching by mutableStateOf(false); private set
-    var isVenueConfirmed by mutableStateOf(false); private set
+    var venueSearchError by mutableStateOf<String?>(null); private set
     private var venueSearchJob: Job? = null
 
     // ── Step 4: Cover Image ───────────────────────────────────────────────────
@@ -113,7 +120,7 @@ class CreateWeddingViewModel @Inject constructor(
     fun isNextEnabled(): Boolean = when (step) {
         1 -> coupleName.isNotBlank()
         2 -> formattedDate.isNotBlank()
-        3 -> venue.isNotBlank()
+        3 -> selectedVenue != null || venueQuery.isNotBlank()
         else -> true
     }
 
@@ -170,20 +177,49 @@ class CreateWeddingViewModel @Inject constructor(
 
     // ── Step 3 ────────────────────────────────────────────────────────────────
 
-    fun onVenueChange(v: String) {
-        venue = v
-        isVenueConfirmed = false
+    fun onVenueQueryChange(query: String) {
+        venueQuery = query
+        selectedVenue = null
+        venue = query
+        venueSuggestions = emptyList()
+        venueSearchError = null
         venueSearchJob?.cancel()
-        if (v.length >= 3) {
-            isVenueSearching = true
+        if (query.length >= 2) {
             venueSearchJob = viewModelScope.launch {
-                delay(650) // debounce — simulate "looking up" the venue
+                delay(350) // debounce
+                isVenueSearching = true
+                placesService.fetchSuggestions(query)
+                    .onSuccess { venueSuggestions = it }
+                    .onFailure { venueSearchError = it.message }
                 isVenueSearching = false
-                isVenueConfirmed = true
             }
         } else {
             isVenueSearching = false
         }
+    }
+
+    fun onVenueSelected(suggestion: VenueSuggestion) {
+        venueQuery = suggestion.primaryText
+        venueSuggestions = emptyList()
+        viewModelScope.launch {
+            isVenueSearching = true
+            val details = placesService.fetchPlaceDetails(suggestion.placeId)
+            if (details != null) {
+                selectedVenue = details
+                venue = details.address.ifBlank { details.name }
+            } else {
+                venue = suggestion.primaryText
+            }
+            isVenueSearching = false
+        }
+    }
+
+    fun clearSelectedVenue() {
+        selectedVenue = null
+        venueSuggestions = emptyList()
+        venue = ""
+        venueQuery = ""
+        venueSearchError = null
     }
 
     // ── Step 4 ────────────────────────────────────────────────────────────────
@@ -246,6 +282,9 @@ class CreateWeddingViewModel @Inject constructor(
                 name = coupleName.trim(),
                 date = weddingTimestamp,
                 location = venue.trim(),
+                venueName = selectedVenue?.name ?: venueQuery.trim(),
+                venueLat = selectedVenue?.lat ?: 0.0,
+                venueLng = selectedVenue?.lng ?: 0.0,
                 adminGuestId = adminGuestId,
                 coverImageUrl = coverImageUrl,
                 menu = menuCourses.filter { it.items.isNotEmpty() },

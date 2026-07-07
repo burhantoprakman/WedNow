@@ -113,6 +113,7 @@ class FirestoreService @Inject constructor(
             "name" to wedding.name,
             "date" to wedding.date,
             "location" to wedding.location,
+            "venueName" to wedding.venueName,
             "adminGuestId" to wedding.adminGuestId,
             "createdAt" to wedding.createdAt,
             "coverImageUrl" to wedding.coverImageUrl,
@@ -155,6 +156,7 @@ class FirestoreService @Inject constructor(
             "name" to wedding.name,
             "date" to wedding.date,
             "location" to wedding.location,
+            "venueName" to wedding.venueName,
             "coverImageUrl" to wedding.coverImageUrl,
             "menu" to menuData,
             "dressCode" to dressCodeData,
@@ -208,6 +210,7 @@ class FirestoreService @Inject constructor(
                 else -> 0L
             },
             location = doc.getString("location") ?: "",
+            venueName = doc.getString("venueName") ?: "",
             adminGuestId = doc.getString("adminGuestId") ?: "",
             createdAt = when (val raw = doc.get("createdAt")) {
                 is Long -> raw
