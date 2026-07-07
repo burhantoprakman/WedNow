@@ -1,6 +1,6 @@
 package com.wednowapp.wednow.presentation.auth
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -80,7 +79,7 @@ fun SignInBottomSheet(
     val authState by authViewModel.authState.collectAsState()
     val isLoading by authViewModel.signInLoading.collectAsState()
     val error by authViewModel.signInError.collectAsState()
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Auth succeeded while the sheet was open → notify the caller
@@ -193,7 +192,7 @@ fun SignInBottomSheet(
             // ── Error ─────────────────────────────────────────────────────────
             if (!error.isNullOrBlank()) {
                 Text(
-                    text = error!!,
+                    text = error.orEmpty(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,

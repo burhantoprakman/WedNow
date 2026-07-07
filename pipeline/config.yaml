@@ -1,0 +1,30 @@
+# ============================================================
+# WedNow Automation Pipeline — Configuration
+# Fill in all values before running any agent.
+# ============================================================
+
+jira:
+  project_key: "KAN"               # Your Jira project key (e.g. WED, WEDNOW)
+  ready_status: "Ready"            # Exact name of the "Ready" column in your board
+  in_progress_status: "In Progress"
+  review_status: "Review"
+  done_status: "Done"
+  base_url: "https://burhantoprakman.atlassian.net/"   # Your Atlassian domain
+
+github:
+  repo: "burhantoprakman/WedNow"   # owner/repo
+  base_branch: "main"
+  branch_prefix: "feature"             # branches named: feature/WEDNOW-42-short-title
+  pr_label: "automated"               # label added to auto-generated PRs
+
+android:
+  build_command: "./gradlew assembleDebug"
+  release_build_command: "./gradlew assembleRelease"
+  apk_output_path: "app/build/outputs/apk/debug/"
+  min_sdk: 24
+  target_sdk: 35
+
+# Path to your standards docs (relative to pipeline/)
+standards:
+  architecture_doc: "standards/ARCHITECTURE.md"
+  code_quality_doc: "standards/CODE_QUALITY.md"

@@ -1,12 +1,8 @@
 package com.wednowapp.wednow.core.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -24,7 +20,6 @@ import com.wednowapp.wednow.presentation.guestbook.GuestbookScreen
 import com.wednowapp.wednow.presentation.guestmanagement.GuestManagementScreen
 import com.wednowapp.wednow.presentation.guests.GuestListScreen
 import com.wednowapp.wednow.presentation.home.HomeScreen
-import com.wednowapp.wednow.presentation.identity.CreateWeddingNavViewModel
 import com.wednowapp.wednow.presentation.identity.IdentityViewModel
 import com.wednowapp.wednow.presentation.identity.LocalIdentityViewModel
 import com.wednowapp.wednow.presentation.notifications.NotificationsScreen
@@ -103,30 +98,6 @@ fun WedNowNavGraph(
         }
 
         composable(Screen.CreateWedding.route) {
-            val auth = LocalAuthViewModel.current
-            val authState by auth.authState.collectAsState()
-            // Track previous sign-in state so we only react to sign-in transitions
-            var wasSignedIn by remember { mutableStateOf(auth.isSignedIn) }
-
-            // Scoped to this back-stack entry — injected use case for cross-device restore
-            val createWeddingNavVm: CreateWeddingNavViewModel =
-                androidx.hilt.navigation.compose.hiltViewModel()
-
-            // When the user signs in from this screen, navigate to their last wedding.
-            // SyncLastActiveWeddingUseCase checks local first, then Firestore (new device).
-            LaunchedEffect(authState) {
-                val isNowSignedIn = authState != null
-                if (!wasSignedIn && isNowSignedIn) {
-                    val weddingId = createWeddingNavVm.resolveLastWedding()
-                    if (weddingId != null) {
-                        navController.navigate(Screen.WeddingHome.createRoute(weddingId)) {
-                            popUpTo(Screen.CreateWedding.route) { inclusive = true }
-                        }
-                    }
-                }
-                wasSignedIn = isNowSignedIn
-            }
-
             CreateWeddingScreen(
                 onWeddingCreated = { weddingId ->
                     navController.navigate(

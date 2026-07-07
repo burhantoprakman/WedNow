@@ -1,6 +1,8 @@
 package com.wednowapp.wednow.presentation.onboarding
 
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,6 +43,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +63,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -93,10 +97,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -112,7 +122,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.wednowapp.wednow.BuildConfig
 import com.wednowapp.wednow.domain.model.TimelineEventData
+import com.wednowapp.wednow.domain.model.VenuePlace
+import com.wednowapp.wednow.domain.model.VenueSuggestion
 import com.wednowapp.wednow.presentation.auth.LocalAuthViewModel
 import com.wednowapp.wednow.presentation.auth.SignInBottomSheet
 import com.wednowapp.wednow.ui.theme.Blush
@@ -132,6 +145,7 @@ import com.wednowapp.wednow.ui.theme.WarmGray50
 import com.wednowapp.wednow.ui.theme.WarmGray500
 import com.wednowapp.wednow.ui.theme.WarmGray600
 import com.wednowapp.wednow.ui.theme.WarmGray700
+import com.wednowapp.wednow.ui.theme.SuccessSage
 import com.wednowapp.wednow.ui.theme.WarmGray800
 import kotlinx.coroutines.launch
 
@@ -151,9 +165,6 @@ fun CreateWeddingScreen(
     var showSignInGate by remember { mutableStateOf(false) }
     var pendingBegin by remember { mutableStateOf(false) }
 
-    // When sign-in completes while the user was trying to begin, advance to step 1.
-    // The NavGraph's own LaunchedEffect will navigate away if they have an existing wedding;
-    // if not, we start the creation flow here.
     LaunchedEffect(authState) {
         if (pendingBegin && authState != null) {
             pendingBegin = false
@@ -756,60 +767,311 @@ private fun VenueStep(vm: CreateWeddingViewModel) {
                 color = WarmGray500,
             )
         }
-        item { Spacer(Modifier.height(Spacing.sm)) }
 
-        if (vm.venue.isNotBlank()) {
+        if (vm.selectedVenue != null) {
+            // ── Venue confirmed card ─────────────────────────────────────────
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = ChampagneLight.copy(alpha = 0.6f)),
-                    elevation = CardDefaults.cardElevation(0.dp),
+                VenueConfirmedCard(
+                    venue = vm.selectedVenue!!,
+                    onChangeVenue = vm::clearSelectedVenue,
+                )
+            }
+        } else {
+            // ── Search field ─────────────────────────────────────────────────
+            item {
+                VenueSearchField(
+                    query = vm.venueQuery,
+                    onQueryChange = vm::onVenueQueryChange,
+                    isSearching = vm.isVenueSearching,
+                )
+            }
+
+            // ── Suggestions list ─────────────────────────────────────────────
+            if (vm.venueSuggestions.isNotEmpty()) {
+                item {
+                    VenueSuggestionList(
+                        suggestions = vm.venueSuggestions,
+                        onSelect = vm::onVenueSelected,
+                    )
+                }
+            } else if (vm.venueSearchError != null && !vm.isVenueSearching) {
+                item { VenueSearchErrorHint(vm.venueSearchError!!) }
+            } else if (vm.venueQuery.length >= 2 && !vm.isVenueSearching) {
+                item { VenueNoResultsHint() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VenueSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    isSearching: Boolean,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = {
+            Text(
+                "Search by name, address, city…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = WarmGray300,
+            )
+        },
+        leadingIcon = {
+            Icon(Icons.Default.LocationOn, null, Modifier.size(20.dp), Gold)
+        },
+        trailingIcon = {
+            if (isSearching) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = Gold,
+                    strokeWidth = 2.dp,
+                )
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Gold,
+            unfocusedBorderColor = WarmGray200,
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            cursorColor = Gold,
+        ),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = WarmGray800),
+    )
+}
+
+@Composable
+private fun VenueSuggestionList(
+    suggestions: List<VenueSuggestion>,
+    onSelect: (VenueSuggestion) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Column {
+            suggestions.forEachIndexed { index, suggestion ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(suggestion) }
+                        .padding(horizontal = Spacing.md, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.cardLg),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(ChampagneLight),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(
-                            Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Gold.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(Icons.Default.LocationOn, null, Modifier.size(22.dp), Gold)
-                        }
-                        Column {
+                        Icon(Icons.Default.LocationOn, null, Modifier.size(16.dp), Gold)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            suggestion.primaryText,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = WarmGray800,
+                            maxLines = 1,
+                        )
+                        if (suggestion.secondaryText.isNotBlank()) {
                             Text(
-                                "VENUE",
-                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                                color = WarmGray400
-                            )
-                            Text(
-                                vm.venue,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = WarmGray800
+                                suggestion.secondaryText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WarmGray400,
+                                maxLines = 1,
                             )
                         }
                     }
                 }
+                if (index < suggestions.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 60.dp),
+                        color = WarmGray100,
+                    )
+                }
             }
         }
+    }
+}
 
-        item {
-            ElegantTextField(
-                value = vm.venue,
-                onValueChange = vm::onVenueChange,
-                label = "Venue Name & Address",
-                placeholder = "Grand Ballroom, New York",
-                leadingIcon = Icons.Default.LocationOn,
-                imeAction = ImeAction.Done,
+@Composable
+private fun VenueConfirmedCard(
+    venue: VenuePlace,
+    onChangeVenue: () -> Unit,
+) {
+    val mapUrl = remember(venue.lat, venue.lng) { staticMapUrl(venue.lat, venue.lng) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column {
+            // Static map preview
+            if (mapUrl.isNotBlank()) {
+                AsyncImage(
+                    model = mapUrl,
+                    contentDescription = "Venue map",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
+                )
+            } else {
+                // Fallback when no key — show placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .background(
+                            Brush.horizontalGradient(listOf(ChampagneLight, Ivory)),
+                            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.LocationOn, null, Modifier.size(28.dp), Gold.copy(alpha = 0.5f))
+                }
+            }
+
+            Column(
+                modifier = Modifier.padding(Spacing.cardLg),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            venue.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = WarmGray800,
+                        )
+                        if (venue.address.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                venue.address,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WarmGray500,
+                            )
+                        }
+                    }
+                    TextButton(onClick = onChangeVenue) {
+                        Text(
+                            "Change",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Gold,
+                        )
+                    }
+                }
+
+                // Verified badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .background(SuccessSage.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            null,
+                            Modifier.size(10.dp),
+                            SuccessSage,
+                        )
+                    }
+                    Text(
+                        "Location verified",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = SuccessSage,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VenueNoResultsHint() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(WarmGray50)
+            .padding(Spacing.lg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(Icons.Default.LocationOn, null, Modifier.size(24.dp), WarmGray300)
+            Text(
+                "No venues found",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = WarmGray500,
+            )
+            Text(
+                "Try a different name or address",
+                style = MaterialTheme.typography.labelSmall,
+                color = WarmGray400,
             )
         }
     }
+}
+
+@Composable
+private fun VenueSearchErrorHint(error: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(BlushLight.copy(alpha = 0.4f))
+            .padding(Spacing.lg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(Icons.Default.LocationOn, null, Modifier.size(24.dp), BlushDeep.copy(alpha = 0.6f))
+            Text(
+                "Venue search unavailable",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = WarmGray600,
+            )
+            Text(
+                error,
+                style = MaterialTheme.typography.labelSmall,
+                color = WarmGray400,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+private fun staticMapUrl(lat: Double, lng: Double): String {
+    val key = BuildConfig.PLACES_API_KEY
+    if (key.isBlank() || (lat == 0.0 && lng == 0.0)) return ""
+    return "https://maps.googleapis.com/maps/api/staticmap" +
+        "?center=$lat,$lng&zoom=15&size=600x300&scale=2" +
+        "&markers=color:0xB8975A%7C$lat,$lng" +
+        "&key=$key"
 }
 
 // ── Step 4 — Cover Image ──────────────────────────────────────────────────────
@@ -1522,16 +1784,28 @@ private fun AddEventSheet(
     onDismiss: () -> Unit,
     onAdd: (TimelineEventData) -> Unit,
 ) {
-    var time by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf("celebration") }
+    var selectedEmoji by remember { mutableStateOf("") }
+    var eventHour by remember { mutableStateOf(14) }
+    var eventMinute by remember { mutableStateOf(0) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
-    val iconEmojis = mapOf(
-        "groups" to "👥", "wine_bar" to "🍷", "favorite" to "💍",
-        "local_bar" to "🍸", "restaurant" to "🍽️", "music_note" to "🎵",
-        "cake" to "🎂", "celebration" to "🎉", "nights_stay" to "🌙",
-        "schedule" to "⏰", "camera" to "📷", "star" to "⭐",
-    )
+    val emojiSuggestions = remember {
+        listOf("💍", "🥂", "🍽️", "🎂", "💃", "🎉", "🌙", "📷", "🎵", "✨", "🎶", "🌸")
+    }
+
+    if (showTimePicker) {
+        EventTimePickerDialog(
+            initialHour = eventHour,
+            initialMinute = eventMinute,
+            onDismiss = { showTimePicker = false },
+            onConfirm = { h, m ->
+                eventHour = h
+                eventMinute = m
+                showTimePicker = false
+            },
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1545,114 +1819,154 @@ private fun AddEventSheet(
                 .padding(horizontal = Spacing.screenHorizontal)
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
-            Text("Add Event", style = MaterialTheme.typography.headlineSmall, color = WarmGray800)
-            Spacer(Modifier.height(Spacing.xs))
+            Text(
+                "Add Event",
+                style = MaterialTheme.typography.headlineSmall,
+                color = WarmGray800,
+            )
 
-            // ── Time-slot chips (30-min intervals, 8 AM → 11:30 PM) ───────────
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // ── Live preview card ─────────────────────────────────────────────
+            AnimatedVisibility(
+                visible = title.isNotBlank(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                EventPreviewCard(
+                    emoji = selectedEmoji,
+                    title = title,
+                    time = formatEventTime(eventHour, eventMinute),
+                )
+            }
+
+            // ── Event title ───────────────────────────────────────────────────
+            ElegantTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = "Event Title",
+                placeholder = "e.g. Ceremony Begins",
+                imeAction = ImeAction.Done,
+            )
+
+            // ── Emoji picker ──────────────────────────────────────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Event Emoji",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = WarmGray500,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Gold.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(selectedEmoji, fontSize = 18.sp)
+                    }
+                }
+
+                // Quick suggestion chips (horizontal scroll)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    emojiSuggestions.forEach { emoji ->
+                        val isSelected = selectedEmoji == emoji
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) Gold else WarmGray50)
+                                .border(1.dp, if (isSelected) Gold else WarmGray100, CircleShape)
+                                .clickable { selectedEmoji = emoji },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(emoji, fontSize = 22.sp)
+                        }
+                    }
+                }
+
+                // Custom emoji text field
+                OutlinedTextField(
+                    value = selectedEmoji,
+                    onValueChange = { new ->
+                        val trimmed = new.trim()
+                        if (trimmed.isNotEmpty()) selectedEmoji = trimmed
+                    },
+                    label = { Text("Or type any emoji", style = MaterialTheme.typography.labelSmall) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = WarmGray200,
+                        cursorColor = Gold,
+                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 22.sp,
+                        color = WarmGray800,
+                    ),
+                )
+            }
+
+            // ── Time picker ───────────────────────────────────────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(
                     "Time",
                     style = MaterialTheme.typography.labelMedium,
                     color = WarmGray500,
                 )
-                val timeSlots = remember {
-                    buildList {
-                        // 480 min = 8:00 AM … 1410 min = 11:30 PM, step 30 min
-                        for (totalMinutes in 480..1410 step 30) {
-                            val h = totalMinutes / 60
-                            val m = totalMinutes % 60
-                            val amPm = if (h < 12) "AM" else "PM"
-                            val displayHour = when {
-                                h == 0 -> 12
-                                h > 12 -> h - 12
-                                else -> h
-                            }
-                            add("$displayHour:${m.toString().padStart(2, '0')} $amPm")
-                        }
-                    }
-                }
-                @OptIn(ExperimentalLayoutApi::class)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White)
+                        .border(1.dp, WarmGray200, RoundedCornerShape(14.dp))
+                        .clickable { showTimePicker = true }
+                        .padding(horizontal = Spacing.md, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    timeSlots.forEach { slot ->
-                        val selected = time == slot
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) Gold else Color.White)
-                                .border(
-                                    width = if (selected) 0.dp else 1.dp,
-                                    color = if (selected) Gold else WarmGray200,
-                                    shape = RoundedCornerShape(20.dp),
-                                )
-                                .clickable { time = slot }
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                slot,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = if (selected) FontWeight.SemiBold
-                                    else FontWeight.Normal,
-                                ),
-                                color = if (selected) Color.White else WarmGray600,
-                            )
-                        }
-                    }
-                }
-            }
-
-            ElegantTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = "Event Title",
-                placeholder = "Ceremony Begins",
-                imeAction = ImeAction.Done,
-            )
-
-            Text("Icon", style = MaterialTheme.typography.labelMedium, color = WarmGray500)
-
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CreateWeddingViewModel.TIMELINE_ICONS.forEach { iconName ->
-                    val selected = selectedIcon == iconName
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(if (selected) Gold else WarmGray100)
-                            .border(
-                                width = if (selected) 0.dp else 0.5.dp,
-                                color = WarmGray200,
-                                shape = CircleShape,
-                            )
-                            .clickable { selectedIcon = iconName },
-                        contentAlignment = Alignment.Center,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Text(iconEmojis[iconName] ?: "✨", fontSize = 20.sp)
+                        Icon(Icons.Default.Schedule, null, Modifier.size(18.dp), Gold)
+                        Text(
+                            formatEventTime(eventHour, eventMinute),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = WarmGray800,
+                        )
                     }
+                    Text(
+                        "Tap to change",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = WarmGray400,
+                    )
                 }
             }
 
-            Spacer(Modifier.height(Spacing.sm))
-
+            // ── Add button ────────────────────────────────────────────────────
             ElegantPrimaryButton(
-                label = "Add Event",
-                enabled = time.isNotBlank() && title.isNotBlank(),
+                label = "Add to Timeline",
+                enabled = title.isNotBlank(),
                 onClick = {
                     onAdd(
                         TimelineEventData(
-                            time = time.trim(),
+                            time = formatEventTime(eventHour, eventMinute),
                             title = title.trim(),
-                            iconName = selectedIcon,
+                            iconName = selectedEmoji,
                             status = "upcoming",
                         )
                     )
@@ -1665,11 +1979,140 @@ private fun AddEventSheet(
     }
 }
 
+@Composable
+private fun EventPreviewCard(emoji: String, title: String, time: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(ChampagneLight, Color.White)
+                )
+            )
+            .border(1.dp, Gold.copy(alpha = 0.22f), RoundedCornerShape(18.dp))
+            .padding(horizontal = Spacing.md, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(50.dp)
+                .clip(CircleShape)
+                .background(Gold.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(emoji, fontSize = 24.sp)
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                time,
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
+                color = Gold,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = WarmGray800,
+                maxLines = 1,
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(Gold.copy(alpha = 0.45f), CircleShape),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EventTimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = false,
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Card(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Select Time",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = WarmGray800,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                )
+                TimePicker(
+                    state = state,
+                    colors = TimePickerDefaults.colors(
+                        clockDialColor = ChampagneLight,
+                        selectorColor = Gold,
+                        containerColor = Color.White,
+                        timeSelectorSelectedContainerColor = Gold,
+                        timeSelectorUnselectedContainerColor = WarmGray50,
+                        timeSelectorSelectedContentColor = Color.White,
+                        timeSelectorUnselectedContentColor = WarmGray700,
+                    ),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = WarmGray400)
+                    }
+                    TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                        Text(
+                            "Confirm",
+                            color = Gold,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatEventTime(hour: Int, minute: Int): String {
+    val amPm = if (hour < 12) "AM" else "PM"
+    val displayHour = when {
+        hour == 0 -> 12
+        hour > 12 -> hour - 12
+        else -> hour
+    }
+    return "$displayHour:${minute.toString().padStart(2, '0')} $amPm"
+}
+
 // ── Step 8 — Invitation Preview ───────────────────────────────────────────────
 
 @Composable
 private fun InvitationStep(vm: CreateWeddingViewModel, isLoading: Boolean) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val graphicsLayer = rememberGraphicsLayer()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1733,10 +2176,17 @@ private fun InvitationStep(vm: CreateWeddingViewModel, isLoading: Boolean) {
             Spacer(Modifier.height(Spacing.xl))
 
             // ── Invitation Card ───────────────────────────────────────────────
-            Card(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal),
+                    .padding(horizontal = Spacing.screenHorizontal)
+                    .drawWithContent {
+                        graphicsLayer.record { this@drawWithContent.drawContent() }
+                        drawLayer(graphicsLayer)
+                    },
+            ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
@@ -1905,40 +2355,40 @@ private fun InvitationStep(vm: CreateWeddingViewModel, isLoading: Boolean) {
                     }
                 }
             }
+            } // end GraphicsLayer wrapper Box
 
             Spacer(Modifier.height(Spacing.xl))
 
-            // ── Share preview before creation ─────────────────────────────────
+            // ── Share / Create actions ────────────────────────────────────────
             Column(
                 modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                // Share text preview
-                val shareText = buildString {
-                    appendLine("💍 You're invited to our wedding!")
-                    appendLine()
-                    if (vm.coupleName.isNotBlank()) appendLine(vm.coupleName)
-                    if (vm.formattedDate.isNotBlank()) appendLine("📅 ${vm.formattedDate}")
-                    if (vm.venue.isNotBlank()) appendLine("📍 ${vm.venue}")
-                    appendLine()
-                    append("More details coming soon — we can't wait to celebrate with you!")
-                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Brush.linearGradient(listOf(ChampagneLight, Champagne)))
+                        .background(Brush.linearGradient(listOf(Gold, GoldDeep)))
                         .clickable {
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, shareText)
-                                putExtra(
-                                    Intent.EXTRA_SUBJECT,
-                                    "Wedding Invitation — ${vm.coupleName}"
-                                )
+                            scope.launch {
+                                val bmp = graphicsLayer.toImageBitmap().asAndroidBitmap()
+                                val uri = saveInvitationImageToCache(context, bmp)
+                                if (uri != null) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "image/png"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(
+                                            Intent.EXTRA_SUBJECT,
+                                            "Wedding Invitation — ${vm.coupleName}"
+                                        )
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(intent, "Share Invitation")
+                                    )
+                                }
                             }
-                            context.startActivity(Intent.createChooser(intent, "Share via"))
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1946,11 +2396,11 @@ private fun InvitationStep(vm: CreateWeddingViewModel, isLoading: Boolean) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        Icon(Icons.Default.Share, null, Modifier.size(18.dp), WarmGray700)
+                        Icon(Icons.Default.Share, null, Modifier.size(18.dp), Color.White)
                         Text(
-                            "Share Invitation Preview",
+                            "Share Invitation",
                             style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.5.sp),
-                            color = WarmGray700,
+                            color = Color.White,
                         )
                     }
                 }
@@ -2158,3 +2608,10 @@ private fun ElegantPrimaryButton(
         )
     }
 }
+
+private fun saveInvitationImageToCache(context: Context, bitmap: Bitmap): Uri? = runCatching {
+    val dir = File(context.cacheDir, "invitations").also { it.mkdirs() }
+    val file = File(dir, "invitation_preview.png")
+    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+}.getOrNull()
