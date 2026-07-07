@@ -1,6 +1,7 @@
 package com.wednowapp.wednow.fake
 
 import com.wednowapp.wednow.domain.model.GuestGroup
+import com.wednowapp.wednow.domain.model.GuestMember
 import com.wednowapp.wednow.domain.repository.GuestGroupRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -14,6 +15,19 @@ class FakeGuestGroupRepository : GuestGroupRepository {
 
     override fun getGuestGroups(weddingId: String): Flow<List<GuestGroup>> =
         flowOf(groups.values.filter { it.weddingId == weddingId })
+
+    override fun getGuestGroupById(weddingId: String, groupId: String): Flow<GuestGroup?> =
+        flowOf(groups[groupId]?.takeIf { it.weddingId == weddingId })
+
+    override suspend fun updateGroupMembers(
+        weddingId: String,
+        groupId: String,
+        members: List<GuestMember>,
+    ): Result<Unit> {
+        val existing = groups[groupId] ?: return Result.failure(NoSuchElementException(groupId))
+        groups[groupId] = existing.copy(members = members)
+        return Result.success(Unit)
+    }
 
     /** Test helper — adds a group under a specific weddingId for readability in test set-up. */
     suspend fun addGuestGroup(weddingId: String, group: GuestGroup): Result<Unit> =

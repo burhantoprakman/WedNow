@@ -136,6 +136,27 @@ fun AccountMenuSheet(
                         color = WarmGray800,
                     )
                 }
+
+                Spacer(Modifier.height(Spacing.sm))
+
+                // Switch Account — signs out and stays open so the user can
+                // immediately pick a different Google / Apple account.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(WarmGray100)
+                        .border(0.8.dp, WarmGray200, RoundedCornerShape(14.dp))
+                        .clickable { authViewModel.signOut() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Switch Account",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WarmGray500,
+                    )
+                }
             } else {
                 // ── Guest state ───────────────────────────────────────────────
 
