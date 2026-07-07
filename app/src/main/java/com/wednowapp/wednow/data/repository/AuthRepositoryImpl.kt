@@ -2,6 +2,7 @@ package com.wednowapp.wednow.data.repository
 
 import android.app.Activity
 import android.content.Context
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -94,6 +95,9 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun signOut(): Result<Unit> = runCatching {
         firebaseAuth.signOut()
+        // Clear the saved Google credential so the next signInWithGoogle call
+        // shows the account picker rather than silently reusing the last account.
+        runCatching { credentialManager.clearCredentialState(ClearCredentialStateRequest()) }
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
