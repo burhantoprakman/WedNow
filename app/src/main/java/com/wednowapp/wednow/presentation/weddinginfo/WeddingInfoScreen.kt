@@ -97,7 +97,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -107,7 +106,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.wednowapp.wednow.domain.model.DressCodeData
 import com.wednowapp.wednow.domain.model.MenuCourseData
 import com.wednowapp.wednow.domain.model.TimelineEventData
@@ -492,7 +490,7 @@ private fun EditSectionWrapper(
             visible = editMode,
             enter = fadeIn(tween(200)) + expandVertically(),
             exit = fadeOut(tween(150)) + shrinkVertically(),
-            modifier = Modifier.align(Alignment.TopEnd),
+            modifier = Modifier.align(Alignment.CenterEnd),
         ) {
             Box(
                 modifier = Modifier
@@ -1569,62 +1567,6 @@ private fun EditableTimelineCard(
 
 @Composable
 private fun InfoHeader(wedding: Wedding, onBack: () -> Unit) {
-    if (wedding.coverImageUrl.isNotBlank()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp),
-        ) {
-            AsyncImage(
-                model = wedding.coverImageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.30f),
-                            0.5f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.55f),
-                        )
-                    )
-            )
-            Box(
-                modifier = Modifier
-                    .padding(Spacing.screenHorizontal, Spacing.sm)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.35f))
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", Modifier.size(20.dp), Color.White)
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = Spacing.lg, start = Spacing.md, end = Spacing.md),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = wedding.name,
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = "EVENT DETAILS",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                    color = Color.White.copy(alpha = 0.75f),
-                )
-            }
-        }
-        Spacer(Modifier.height(Spacing.lg))
-    } else {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -1670,7 +1612,7 @@ private fun InfoHeader(wedding: Wedding, onBack: () -> Unit) {
                 )
             }
         }
-    }
+
 }
 
 @Composable

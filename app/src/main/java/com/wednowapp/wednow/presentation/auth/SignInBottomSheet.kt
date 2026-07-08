@@ -185,7 +185,7 @@ fun SignInBottomSheet(
                 // ── Apple button ──────────────────────────────────────────────
                 SignInButton(
                     label = "Continue with Apple",
-                    logoText = "",
+                    logoText = "A",
                     logoBackground = Color.Black,
                     buttonBackground = Color(0xFF1C1C1E),
                     borderColor = Color.Transparent,
@@ -273,4 +273,3 @@ private fun SignInButton(
         }
     }
 }
-

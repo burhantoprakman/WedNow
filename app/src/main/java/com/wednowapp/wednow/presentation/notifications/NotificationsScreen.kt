@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -345,31 +344,13 @@ fun NotificationCard(
                 ambientColor = Gold.copy(alpha = if (isRead) 0f else 0.12f),
                 spotColor = Gold.copy(alpha = if (isRead) 0f else 0.08f),
             )
-            .clip(RoundedCornerShape(18.dp))
             .background(cardBg)
-            .border(0.8.dp, cardBorder, RoundedCornerShape(18.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick,
             ),
     ) {
-        // Gold left accent strip — unread cards only
-        if (!isRead) {
-            Box(
-                modifier = Modifier
-                    .width(3.5.dp)
-                    .fillMaxHeight()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                if (isHighPriority) Gold else Gold.copy(alpha = 0.88f),
-                                GoldDeep.copy(alpha = if (isHighPriority) 0.92f else 0.58f),
-                            )
-                        )
-                    )
-            )
-        }
 
         Column(
             modifier = Modifier
@@ -381,16 +362,6 @@ fun NotificationCard(
                     bottom = 14.dp,
                 ),
         ) {
-            // High-priority gold banner across the top
-            if (isHighPriority && !isRead) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Brush.horizontalGradient(listOf(Gold, GoldDeep, Gold)))
-                )
-                Spacer(Modifier.height(12.dp))
-            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
