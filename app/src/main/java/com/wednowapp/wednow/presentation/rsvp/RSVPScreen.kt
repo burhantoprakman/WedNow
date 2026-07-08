@@ -96,6 +96,7 @@ fun RSVPScreen(
     val currentGuest by viewModel.currentGuest.collectAsState()
     val currentGroup by viewModel.currentGroup.collectAsState()
     val submitState by viewModel.submitState.collectAsState()
+    val guestLoaded by viewModel.guestLoaded.collectAsState()
     val snackbarState = remember { SnackbarHostState() }
     val isLoading = submitState == RsvpSubmitState.Loading
 
@@ -200,7 +201,7 @@ fun RSVPScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 when {
-                    currentGuest == null && submitState !is RsvpSubmitState.Error -> {
+                    !guestLoaded && currentGuest == null && submitState !is RsvpSubmitState.Error -> {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()

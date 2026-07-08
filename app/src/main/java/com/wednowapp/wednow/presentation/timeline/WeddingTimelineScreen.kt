@@ -32,7 +32,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Celebration
@@ -90,7 +90,6 @@ import com.wednowapp.wednow.ui.theme.Ivory
 import com.wednowapp.wednow.ui.theme.Spacing
 import com.wednowapp.wednow.ui.theme.WarmGray100
 import com.wednowapp.wednow.ui.theme.WarmGray200
-import com.wednowapp.wednow.ui.theme.WarmGray300
 import com.wednowapp.wednow.ui.theme.WarmGray400
 import com.wednowapp.wednow.ui.theme.WarmGray50
 import com.wednowapp.wednow.ui.theme.WarmGray500
@@ -122,7 +121,23 @@ data class TimelineEvent(
     val description: String? = null,
     val icon: ImageVector,
     val status: EventStatus,
+    val color: Color = Gold,
 )
+
+private fun iconNameToColor(iconName: String): Color = when (iconName.lowercase()) {
+    "groups" -> Color(0xFF6B9AC4)  // steel blue
+    "wine_bar" -> Color(0xFF9B7BB8)  // soft plum
+    "local_bar" -> Color(0xFF9B7BB8)
+    "favorite" -> Color(0xFFD4607A)  // deep rose
+    "restaurant" -> Color(0xFFD4884A)  // warm amber
+    "music_note" -> Color(0xFF7A7CC8)  // soft indigo
+    "cake" -> Color(0xFFD47899)  // dusty rose
+    "celebration" -> Color(0xFFD4A840)  // gold
+    "nights_stay" -> Color(0xFF5870A8)  // evening blue
+    "calendar" -> Color(0xFF5E9E8E)  // sage teal
+    "schedule" -> Color(0xFF7A9EA0)  // muted teal
+    else -> Color(0xFFD4A840)
+}
 
 private fun iconNameToVector(iconName: String): ImageVector = when (iconName.lowercase()) {
     "groups" -> Icons.Default.Groups
@@ -150,6 +165,7 @@ private fun TimelineEventData.toTimelineEvent(id: Int): TimelineEvent = Timeline
         "current" -> EventStatus.CURRENT
         else -> EventStatus.UPCOMING
     },
+    color = iconNameToColor(iconName),
 )
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -271,26 +287,18 @@ private fun TimelineHeader(wedding: Wedding, onBack: () -> Unit) {
             onClick  = onBack,
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.8f)),
+                .clip(CircleShape)
+                .background(WarmGray50)
         ) {
             Icon(
-                imageVector      = Icons.Default.ArrowBack,
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint             = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier         = Modifier.size(20.dp),
+                modifier = Modifier.size(20.dp),
+                tint = WarmGray600,
             )
         }
 
         Spacer(Modifier.height(Spacing.md))
-
-        Text(
-            text  = "THE BIG DAY",
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 3.sp),
-            color = Gold.copy(alpha = 0.85f),
-        )
-
-        Spacer(Modifier.height(Spacing.xs))
 
         Text(
             text  = "Wedding Timeline",
@@ -480,29 +488,28 @@ fun IndicatorColumn(
     val isCurrent   = event.status == EventStatus.CURRENT
     val isCompleted = event.status == EventStatus.COMPLETED
 
-    val dotSize  = if (isCurrent) 26.dp else 20.dp
-    val iconSize = if (isCurrent) 13.dp else 10.dp
+    val dotSize = if (isCurrent) 28.dp else 22.dp
+    val iconSize = if (isCurrent) 14.dp else 12.dp
 
+    val accentColor = when (event.status) {
+        EventStatus.COMPLETED -> Gold
+        EventStatus.CURRENT -> BlushDeep
+        EventStatus.UPCOMING -> event.color
+    }
     val dotBg = when (event.status) {
         EventStatus.COMPLETED -> Gold
         EventStatus.CURRENT   -> BlushDeep
-        EventStatus.UPCOMING  -> WarmGray300
+        EventStatus.UPCOMING -> event.color.copy(alpha = 0.13f)
     }
     val dotBorder = when (event.status) {
-        EventStatus.CURRENT  -> Gold
+        EventStatus.CURRENT -> Gold
         EventStatus.COMPLETED -> Gold.copy(alpha = 0.35f)
-        EventStatus.UPCOMING -> Color.Transparent
+        EventStatus.UPCOMING -> event.color.copy(alpha = 0.38f)
     }
     val iconTint = when (event.status) {
-        EventStatus.UPCOMING -> WarmGray500
+        EventStatus.UPCOMING -> event.color
         else                 -> Color.White
     }
-    val topLineColor = when {
-        isCompleted -> Gold.copy(alpha = 0.48f)
-        isCurrent   -> Brush.verticalGradient(listOf(Gold.copy(alpha = 0.4f), BlushDeep.copy(alpha = 0.45f)))
-        else        -> Brush.verticalGradient(listOf(WarmGray200, WarmGray200))
-    }
-
     Box(
         modifier = modifier
             .padding(start = Spacing.screenHorizontal)
@@ -591,53 +598,54 @@ fun EventCard(
     val isCurrent   = event.status == EventStatus.CURRENT
     val isCompleted = event.status == EventStatus.COMPLETED
 
-    val cardColor = when (event.status) {
-        EventStatus.COMPLETED -> WarmGray50
-        EventStatus.CURRENT   -> Color.White
-        EventStatus.UPCOMING  -> Color.White.copy(alpha = 0.92f)
+    val accentColor = when (event.status) {
+        EventStatus.COMPLETED -> Gold
+        EventStatus.CURRENT -> event.color
+        EventStatus.UPCOMING -> event.color
     }
-    val elevation = when (event.status) {
-        EventStatus.COMPLETED -> 0.dp
-        EventStatus.CURRENT   -> 8.dp
-        EventStatus.UPCOMING  -> 2.dp
+
+    val cardBg = when (event.status) {
+        EventStatus.COMPLETED -> Color(0xFFF0ECE5)
+        EventStatus.CURRENT -> Color(0xFFFFFCF8)
+        EventStatus.UPCOMING -> Color(0xFFF7F3EC)
     }
 
     Card(
         modifier  = modifier.fillMaxWidth(),
-        shape     = RoundedCornerShape(20.dp),
-        colors    = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
-        border    = if (isCurrent) BorderStroke(1.dp, Gold.copy(alpha = 0.28f)) else null,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 3.dp else 0.dp),
+        border = BorderStroke(
+            width = if (isCurrent) 1.dp else 0.5.dp,
+            color = accentColor.copy(alpha = if (isCurrent) 0.38f else 0.20f),
+        ),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min),
         ) {
-            // Gold gradient left accent bar for the active event
-            if (isCurrent) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .fillMaxHeight()
-                        .background(
-                            Brush.verticalGradient(listOf(Gold, BlushDeep))
-                        ),
-                )
-            }
+            // Left accent bar — always visible, color intensity reflects status
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                accentColor.copy(alpha = if (isCurrent) 0.85f else 0.35f),
+                                accentColor.copy(alpha = if (isCurrent) 0.50f else 0.15f),
+                            )
+                        )
+                    ),
+            )
 
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .alpha(if (isCompleted) 0.58f else 1f)
-                    .padding(
-                        start = if (isCurrent) 14.dp else Spacing.cardMd,
-                        end = Spacing.cardMd,
-                        top = Spacing.cardMd,
-                        bottom = Spacing.cardMd,
-                    ),
+                    .padding(start = 12.dp, end = Spacing.cardMd, top = 11.dp, bottom = 11.dp),
             ) {
-                // Time + status badge
+                // Time + badge row
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     verticalAlignment     = Alignment.CenterVertically,
@@ -645,45 +653,42 @@ fun EventCard(
                 ) {
                     Text(
                         text  = event.time,
-                        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.5.sp),
-                        color = when (event.status) {
-                            EventStatus.CURRENT  -> Gold
-                            else                 -> WarmGray400
-                        },
+                        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
+                        color = if (isCurrent) accentColor else WarmGray400,
                     )
                     when (event.status) {
-                        EventStatus.CURRENT  -> LiveBadge()
+                        EventStatus.CURRENT -> LiveBadge()
                         EventStatus.COMPLETED -> CompletedBadge()
                         EventStatus.UPCOMING  -> Unit
                     }
                 }
 
-                Spacer(Modifier.height(5.dp))
+                Spacer(Modifier.height(8.dp))
 
-                // Event title
-                Text(
-                    text  = event.title,
-                    style = if (isCurrent) {
-                        MaterialTheme.typography.titleMedium.copy(
-                            fontSize   = 17.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    } else {
-                        MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp)
-                    },
-                    color = if (isCompleted) WarmGray600 else MaterialTheme.colorScheme.onSurface,
-                )
+                // Colored icon badge + title
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+
+                    Text(
+                        text = event.title,
+                        style = if (isCurrent) {
+                            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                        } else {
+                            MaterialTheme.typography.titleSmall
+                        },
+                        color = if (isCompleted) WarmGray500 else WarmGray700,
+                    )
+                }
 
                 // Description
                 if (event.description != null) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text     = event.description,
                         style    = MaterialTheme.typography.bodySmall,
-                        color    = if (isCompleted)
-                            WarmGray400
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
+                        color = if (isCompleted) WarmGray400 else WarmGray600,
                         maxLines = if (isCurrent) 3 else 2,
                     )
                 }

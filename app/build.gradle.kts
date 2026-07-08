@@ -1,9 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
+}
+
+// ── Read local.properties (never committed to git) ────────────────────────────
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -21,17 +29,58 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // ── Secrets injected at build time ────────────────────────────────────
+        // Google Places / Maps (value comes from local.properties, never committed)
+        val placesApiKey = localProps.getProperty("PLACES_API_KEY") ?: ""
+        buildConfigField("String", "PLACES_API_KEY", "\"$placesApiKey\"")
+
+        // Google OAuth web client ID — not a secret, but kept out of resource
+        // strings so config lives in one place.
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"385203742580-s74s2r5rhu5ipeq7ebc2ggblo0orcb05.apps.googleusercontent.com\"",
+        )
+    }
+
+    // ── Signing ───────────────────────────────────────────────────────────────
+    // Release keystore credentials come from local.properties or CI env vars.
+    // Keys: KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+    signingConfigs {
+        create("release") {
+            val ksPath = localProps.getProperty("KEYSTORE_PATH") ?: ""
+            if (ksPath.isNotEmpty()) {
+                storeFile = file(ksPath)
+                storePassword = localProps.getProperty("KEYSTORE_PASSWORD", "")
+                keyAlias = localProps.getProperty("KEY_ALIAS", "")
+                keyPassword = localProps.getProperty("KEY_PASSWORD", "")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            val releaseSigningConfig = signingConfigs.findByName("release")
+            signingConfig = if (releaseSigningConfig?.storeFile?.exists() == true) {
+                releaseSigningConfig
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
+        debug {
+            isDebuggable = true
+            isMinifyEnabled = false
+        }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -45,8 +94,10 @@ android {
             }
         }
     }
+
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

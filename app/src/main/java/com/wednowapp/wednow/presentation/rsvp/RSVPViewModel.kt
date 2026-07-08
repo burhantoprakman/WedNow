@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -38,7 +39,11 @@ class RSVPViewModel @Inject constructor(
 
     val weddingId: String = checkNotNull(savedStateHandle[Screen.RSVP.ARG])
 
+    private val _guestLoaded = MutableStateFlow(false)
+    val guestLoaded: StateFlow<Boolean> = _guestLoaded.asStateFlow()
+
     val currentGuest: StateFlow<Guest?> = getCurrentGuestUseCase(weddingId)
+        .onEach { _guestLoaded.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)

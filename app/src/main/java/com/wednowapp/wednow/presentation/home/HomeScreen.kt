@@ -210,7 +210,6 @@ private fun HomeContent(
     var showAccountSheet by remember { mutableStateOf(false) }
     var showSignInSheet by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
-
     LaunchedEffect(Unit) { visible = true }
 
     val heroAlpha by animateFloatAsState(
@@ -287,8 +286,6 @@ private fun HomeContent(
                 )
             }
             item { Spacer(Modifier.height(Spacing.xl)) }
-            item { ElegantFooter(Modifier.alpha(previewAlpha)) }
-            item { Spacer(Modifier.height(Spacing.lg)) }
             item {
                 GuestPassCard(
                     userName = authState?.displayName,
@@ -299,6 +296,8 @@ private fun HomeContent(
                         .padding(horizontal = Spacing.screenHorizontal),
                 )
             }
+            item { Spacer(Modifier.height(Spacing.lg)) }
+            item { ElegantFooter(Modifier.alpha(previewAlpha)) }
             item { Spacer(Modifier.height(Spacing.xl)) }
         }
 
@@ -316,6 +315,11 @@ private fun HomeContent(
             onDismiss = { showAccountSheet = false },
             onSignIn = { showAccountSheet = false; showSignInSheet = true },
             onSignOut = { authViewModel.signOut(); showAccountSheet = false },
+            onSwitchAccount = {
+                authViewModel.prepareForAccountSwitch()
+                showAccountSheet = false
+                showSignInSheet = true
+            },
             onNavigateToRSVP = { showAccountSheet = false; onNavigateToRSVP() },
             onNavigateToNotifications = { showAccountSheet = false; onNavigateToNotifications() },
             onPrivacyPolicy = {
@@ -602,63 +606,66 @@ private fun HeroSection(wedding: Wedding, modifier: Modifier = Modifier) {
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    error = painterResource(R.drawable.homeimage),
-                    placeholder = painterResource(R.drawable.homeimage),
+                    error = painterResource(R.drawable.home_placeholder),
+                    placeholder = painterResource(R.drawable.home_placeholder),
                 )
             } else {
                 Image(
-                    painter = painterResource(R.drawable.homeimage),
+                    painter = painterResource(R.drawable.home_placeholder),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
 
-            // Bottom fade — main text zone
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.00f to Color.Transparent,
-                            0.30f to Color.Transparent,
-                            1.00f to Color.Black.copy(alpha = 0.62f),
+            if (wedding.coverImageUrl.isNotBlank()) {
+                // Bottom fade — main text zone
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0.00f to Color.Transparent,
+                                0.30f to Color.Transparent,
+                                1.00f to Color.Black.copy(alpha = 0.62f),
+                            )
                         )
-                    )
-            )
-            // Left edge fade
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            0.00f to Color.Black.copy(alpha = 0.38f),
-                            0.22f to Color.Transparent,
+                )
+                // Left edge fade
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                0.00f to Color.Black.copy(alpha = 0.38f),
+                                0.22f to Color.Transparent,
+                            )
                         )
-                    )
-            )
-            // Right edge fade
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            0.78f to Color.Transparent,
-                            1.00f to Color.Black.copy(alpha = 0.38f),
+                )
+                // Right edge fade
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                0.78f to Color.Transparent,
+                                1.00f to Color.Black.copy(alpha = 0.38f),
+                            )
                         )
-                    )
-            )
-            // Top edge fade — very subtle, seals the top
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.00f to Color.Black.copy(alpha = 0.28f),
-                            0.18f to Color.Transparent,
+                )
+                // Top edge fade — very subtle, seals the top
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0.00f to Color.Black.copy(alpha = 0.28f),
+                                0.18f to Color.Transparent,
+                            )
                         )
-                    )
-            )
+                )
+            }
+
 
             // Names in negative space (bottom) — Screen blended, low opacity, no UI chrome
             val serifFamily = MaterialTheme.typography.displayLarge.fontFamily

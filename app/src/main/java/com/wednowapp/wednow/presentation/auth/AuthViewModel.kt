@@ -85,6 +85,16 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Clears the cached Google credential without signing out of Firebase.
+     * Forces the account picker on the next sign-in attempt. The current
+     * session stays alive — if the user dismisses the picker or sign-in fails,
+     * the existing account remains active.
+     */
+    fun prepareForAccountSwitch() {
+        viewModelScope.launch { authRepository.clearGoogleCredential() }
+    }
+
     fun clearError() {
         _signInError.value = null
     }

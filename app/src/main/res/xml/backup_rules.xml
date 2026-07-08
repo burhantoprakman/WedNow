@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+    Cloud Backup rules (API 30 and below).
+    For API 31+ see data_extraction_rules.xml.
+
+    Excluded SharedPreferences:
+      • wednow_identity — contains user email, display name, auth provider, linked IDs
+      • wedding_app     — contains device-local guest UUID and guest display name
+
+    These are excluded because:
+    1. Auth state should be re-established via Firebase on first launch.
+    2. Guest UUIDs are device-specific — restoring them to another device would
+       silently merge identities in Firestore.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude
+        domain="sharedpref"
+        path="wednow_identity.xml" />
+    <exclude
+        domain="sharedpref"
+        path="wedding_app.xml" />
 </full-backup-content>

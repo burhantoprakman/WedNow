@@ -126,8 +126,9 @@ enum class NotifPrefType(val emoji: String, val label: String, val description: 
  * @param userInitial         First character of the display name for the avatar circle.
  * @param guestRole           "guest" | "admin" | "coadmin"
  * @param onDismiss           Dismiss the sheet.
- * @param onSignIn            Trigger the sign-in flow (caller decides which provider).
+ * @param onSignIn            Trigger the sign-in flow for a guest (caller decides which provider).
  * @param onSignOut           Sign the user out.
+ * @param onSwitchAccount     Sign out then immediately trigger a new sign-in (account picker).
  * @param onPrivacyPolicy     Open Privacy Policy.
  * @param onTermsAndConditions Open Terms & Conditions.
  * @param onContactSupport    Open Contact Support.
@@ -144,6 +145,7 @@ fun GuestPassSheet(
     onDismiss: () -> Unit,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onSwitchAccount: () -> Unit = onSignIn,
     onNavigateToRSVP: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onPrivacyPolicy: () -> Unit = {},
@@ -318,6 +320,7 @@ fun GuestPassSheet(
                 isSignedIn = isSignedIn,
                 onSignIn = onSignIn,
                 onSignOut = onSignOut,
+                onSwitchAccount = onSwitchAccount,
             )
         }
     }
@@ -918,6 +921,7 @@ private fun AccountCard(
     isSignedIn: Boolean,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onSwitchAccount: () -> Unit = onSignIn,
 ) {
     Box(
         modifier = Modifier
@@ -942,7 +946,7 @@ private fun AccountCard(
                     emoji = "🔄",
                     label = "Switch Account",
                     textColor = WarmGray800,
-                    onClick = onSignIn,
+                    onClick = onSwitchAccount,
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 18.dp),

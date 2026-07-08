@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    Network Security Configuration
+    All traffic must be HTTPS (TLS). Cleartext HTTP is explicitly forbidden.
+    Firebase, Google APIs, and Coil image loading all use HTTPS by default,
+    so this setting has no functional impact on normal app behaviour.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust only the system certificate store (no user-installed CAs). -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

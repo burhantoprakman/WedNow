@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -156,16 +155,18 @@ class IdentityManager @Inject constructor(
     }
 
     private fun createAndApplyGuestIdentity() {
-        val newGuestId = UUID.randomUUID().toString()
+        // Preserve the existing guestId rather than rotating it. Generating a new
+        // UUID on every sign-out disconnects the device from its Firestore guest
+        // document (breaking RSVP, group membership, etc.), because every lookup
+        // uses GuestSessionManager.getGuestId() as the document key.
+        val guestId = GuestSessionManager.getGuestId(context)
         val guest = Identity(
-            identityId = newGuestId,
+            identityId = guestId,
             type = IdentityType.GUEST,
             provider = AuthProvider.NONE,
         )
         _identity.value = guest
         IdentityPreferences.save(context, guest)
-        // Keep the legacy GuestSessionManager in sync so older code paths work
-        GuestSessionManager.saveGuestId(context, newGuestId)
     }
 
     // ── Utility extensions ────────────────────────────────────────────────────

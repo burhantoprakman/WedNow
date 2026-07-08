@@ -14,7 +14,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.OAuthProvider
-import com.wednowapp.wednow.R
+import com.wednowapp.wednow.BuildConfig
 import com.wednowapp.wednow.domain.model.AuthUser
 import com.wednowapp.wednow.domain.repository.AuthRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -47,8 +47,8 @@ class AuthRepositoryImpl @Inject constructor(
     // ── Google Sign-In (Credential Manager) ──────────────────────────────────
 
     override suspend fun signInWithGoogle(activity: Activity): Result<AuthUser> = runCatching {
-        val webClientId = context.getString(R.string.google_web_client_id)
-        val googleOption = GetSignInWithGoogleOption.Builder(webClientId).build()
+        val googleOption =
+            GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID).build()
 
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(googleOption)
@@ -95,9 +95,11 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun signOut(): Result<Unit> = runCatching {
         firebaseAuth.signOut()
-        // Clear the saved Google credential so the next signInWithGoogle call
-        // shows the account picker rather than silently reusing the last account.
         runCatching { credentialManager.clearCredentialState(ClearCredentialStateRequest()) }
+    }
+
+    override suspend fun clearGoogleCredential(): Result<Unit> = runCatching {
+        credentialManager.clearCredentialState(ClearCredentialStateRequest())
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

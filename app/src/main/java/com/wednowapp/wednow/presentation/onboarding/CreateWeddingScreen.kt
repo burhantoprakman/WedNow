@@ -206,7 +206,7 @@ fun CreateWeddingScreen(
                         },
                         onJoin = onJoinWeddingClick,
                     )
-                    7 -> InvitationStep(
+                    8 -> InvitationStep(
                         vm = viewModel,
                         isLoading = createState is CreateWeddingState.Loading,
                     )
@@ -230,7 +230,7 @@ fun CreateWeddingScreen(
     }
 }
 
-// ── Shared step scaffold (steps 1–6) ─────────────────────────────────────────
+// ── Shared step scaffold (steps 1–7) ─────────────────────────────────────────
 
 @Composable
 private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
@@ -292,8 +292,8 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
                 3 -> VenueStep(vm)
                 4 -> MenuStep(vm)
                 5 -> DressCodeStep(vm)
-                6 -> TimelineStep(vm)
-                7 -> CoverImageStep(vm)
+                6 -> CoverImageStep(vm)
+                7 -> TimelineStep(vm)
             }
         }
 
@@ -317,7 +317,7 @@ private fun StepScaffold(vm: CreateWeddingViewModel, step: Int) {
             }
             // Always expands to fill remaining width — never floats awkwardly
             ElegantPrimaryButton(
-                label = if (step == 6) "Review" else "Continue",
+                label = if (step == 7) "Review" else "Continue",
                 enabled = vm.isNextEnabled(),
                 onClick = vm::goNext,
                 modifier = Modifier.weight(1f),

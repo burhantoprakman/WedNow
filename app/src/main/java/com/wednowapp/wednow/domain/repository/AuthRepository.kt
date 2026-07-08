@@ -23,4 +23,12 @@ interface AuthRepository {
     suspend fun signInWithApple(activity: Activity): Result<AuthUser>
 
     suspend fun signOut(): Result<Unit>
+
+    /**
+     * Clears the cached Google credential WITHOUT signing out of Firebase.
+     * Call this before showing the sign-in sheet for account switching so the
+     * Credential Manager presents the account picker instead of silently
+     * reusing the last-signed-in account.
+     */
+    suspend fun clearGoogleCredential(): Result<Unit>
 }

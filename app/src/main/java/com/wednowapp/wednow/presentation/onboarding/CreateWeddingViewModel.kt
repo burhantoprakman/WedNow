@@ -38,7 +38,7 @@ class CreateWeddingViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        const val TOTAL_STEPS = 8
+        const val TOTAL_STEPS = 9
 
         val DEFAULT_MENU = listOf(
             MenuCourseData("Starter", "🥗"),

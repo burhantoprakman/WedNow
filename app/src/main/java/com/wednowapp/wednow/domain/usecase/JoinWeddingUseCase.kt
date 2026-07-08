@@ -1,7 +1,6 @@
 package com.wednowapp.wednow.domain.usecase
 
 import android.content.Context
-import android.util.Log
 import com.wednowapp.wednow.core.identity.IdentityManager
 import com.wednowapp.wednow.core.session.GuestSessionManager
 import com.wednowapp.wednow.core.session.WeddingSessionManager
@@ -14,8 +13,6 @@ import com.wednowapp.wednow.domain.repository.MembershipRepository
 import com.wednowapp.wednow.domain.repository.WeddingRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-
-private const val TAG = "JoinWedding"
 
 class JoinWeddingUseCase @Inject constructor(
     private val weddingRepository: WeddingRepository,
@@ -40,33 +37,17 @@ class JoinWeddingUseCase @Inject constructor(
 
         // 1 — inviteToken lookup
         val groupResult = guestGroupRepository.findGroupByInviteToken(code)
-        Log.d(
-            TAG, "inviteToken lookup '$code': success=${groupResult.isSuccess}, " +
-                    "group=${groupResult.getOrNull()?.id}, error=${groupResult.exceptionOrNull()?.message}"
-        )
-
         val groupMatch = groupResult.getOrNull()
+
         if (groupMatch != null) {
             weddingId = groupMatch.weddingId
-            Log.d(TAG, "Joined via inviteToken → weddingId=$weddingId")
         } else {
             // 2 — shortCode / weddingId fallback
             val shortCodeResult = weddingRepository.getWeddingByShortCode(code)
-            Log.d(
-                TAG, "shortCode lookup '$code': success=${shortCodeResult.isSuccess}, " +
-                        "wedding=${shortCodeResult.getOrNull()?.id}, " +
-                        "error=${shortCodeResult.exceptionOrNull()?.message}"
-            )
-
             val wedding = shortCodeResult.getOrNull()
                 ?: run {
                     // 3 — treat as raw weddingId (QR deep links)
-                    val byIdResult = weddingRepository.getWeddingById(code)
-                    Log.d(
-                        TAG, "weddingId fallback '$code': success=${byIdResult.isSuccess}, " +
-                                "error=${byIdResult.exceptionOrNull()?.message}"
-                    )
-                    byIdResult.getOrNull()
+                    weddingRepository.getWeddingById(code).getOrNull()
                 }
                 ?: return Result.failure(
                     shortCodeResult.exceptionOrNull()
@@ -80,7 +61,6 @@ class JoinWeddingUseCase @Inject constructor(
         // ── Step 2: register the guest in the per-wedding collection ─────────
         val guestId = GuestSessionManager.getGuestId(context)
 
-        // Determine role (only the original creator gets ADMIN through this flow)
         val wedding = weddingRepository.getWeddingById(weddingId).getOrNull()
         val role = if (wedding?.adminGuestId == guestId) GuestRole.ADMIN else GuestRole.GUEST
 
@@ -95,7 +75,6 @@ class JoinWeddingUseCase @Inject constructor(
         ).getOrElse { return Result.failure(it) }
 
         // ── Step 3: record in the cross-device membership index ───────────────
-        // This is best-effort — failure here does not abort the join
         val identityId = identityManager.currentIdentityId
         runCatching {
             membershipRepository.addMembership(
@@ -110,7 +89,7 @@ class JoinWeddingUseCase @Inject constructor(
 
         WeddingSessionManager.saveWeddingId(context, weddingId)
         GuestSessionManager.saveGuestName(context, guestName.orEmpty())
-        saveFcmTokenUseCase(weddingId) // best-effort; ignore failure
+        saveFcmTokenUseCase(weddingId)
 
         return Result.success(weddingId)
     }

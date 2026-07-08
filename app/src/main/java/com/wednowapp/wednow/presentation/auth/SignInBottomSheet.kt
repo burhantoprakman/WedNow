@@ -1,6 +1,6 @@
 package com.wednowapp.wednow.presentation.auth
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,11 +26,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -80,12 +80,18 @@ fun SignInBottomSheet(
     val authState by authViewModel.authState.collectAsState()
     val isLoading by authViewModel.signInLoading.collectAsState()
     val error by authViewModel.signInError.collectAsState()
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Auth succeeded while the sheet was open → notify the caller
+    // Fire onSuccess only when the signed-in UID actually changes while the sheet
+    // is open — covers both paths:
+    //   • Guest → sign in:  initialUid = null, any sign-in uid satisfies the check.
+    //   • Switch Account:   initialUid = current uid; onSuccess fires only when a
+    //     *different* account is picked. If the user dismisses or fails, the existing
+    //     session is untouched.
+    val initialUid = remember { authState?.uid }
     LaunchedEffect(authState) {
-        if (authState != null) onSuccess()
+        if (authState != null && authState!!.uid != initialUid) onSuccess()
     }
 
     ModalBottomSheet(

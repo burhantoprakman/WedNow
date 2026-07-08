@@ -1,19 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+    Data Extraction Rules (API 31+).
+    Controls what is included in cloud backups and device-to-device transfers.
+
+    See: https://developer.android.com/about/versions/12/backup-restore#xml-changes
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
+        <!--
+            Exclude authentication and identity data.
+            Auth state is re-established via Firebase on first launch after restore.
+            Restoring a stale identity would silently link the restored device to
+            the original device's Firestore guest document.
         -->
+        <exclude
+            domain="sharedpref"
+            path="wednow_identity.xml" />
+        <!--
+            Exclude device-local guest session data.
+            The guest UUID is device-specific — transferring it would merge two
+            separate devices' identities on the Firestore side.
+        -->
+        <exclude
+            domain="sharedpref"
+            path="wedding_app.xml" />
     </cloud-backup>
-    <!--
+
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- Same exclusions apply for device-to-device (e.g. Setup Wizard restore). -->
+        <exclude
+            domain="sharedpref"
+            path="wednow_identity.xml" />
+        <exclude
+            domain="sharedpref"
+            path="wedding_app.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>
