@@ -36,7 +36,7 @@
 
             <!--
                 Custom-scheme deep link — works immediately when the app is installed.
-                URI format: wednow://join/{weddingId}
+                URI formats: maritsa://join/{weddingId}, maritsa://invite/{inviteToken}
                 When the app is NOT installed, Android shows "No app found"; guests
                 are directed to the Play Store via the HTTPS link below or the PDF link.
             -->
@@ -49,14 +49,19 @@
                 <data
                     android:scheme="maritsa"
                     android:host="join" />
+                <data
+                    android:scheme="maritsa"
+                    android:host="invite" />
             </intent-filter>
 
             <!--
                 Android App Links — verified HTTPS deep link.
-                URI format: https://maritsa.app/join/{weddingId}
+                URI formats: https://maritsa.app/join/{weddingId}
+                             https://maritsa.app/invite/{inviteToken}
                 • App installed  → Android opens Maritsa directly (no browser).
                 • App not installed → browser opens the URL; host the page at
-                  https://maritsa.app/join/{id} to redirect guests to the Play Store.
+                  https://maritsa.app/join/{id} or /invite/{token} to redirect
+                  guests to the Play Store.
                 Requires /.well-known/assetlinks.json served at maritsa.app.
                 See: https://developer.android.com/training/app-links
             -->
@@ -70,6 +75,10 @@
                     android:scheme="https"
                     android:host="maritsa.app"
                     android:pathPrefix="/join" />
+                <data
+                    android:scheme="https"
+                    android:host="maritsa.app"
+                    android:pathPrefix="/invite" />
             </intent-filter>
 
         </activity>

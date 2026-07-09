@@ -1,0 +1,139 @@
+package com.maritsa.app.core.fcm
+
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.media.RingtoneManager
+import androidx.core.app.NotificationCompat
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+import com.maritsa.app.MainActivity
+import com.maritsa.app.R
+import com.maritsa.app.WedNowApplication
+import com.maritsa.app.core.identity.IdentityManager
+import com.maritsa.app.core.session.GuestSessionManager
+import com.maritsa.app.core.session.WeddingSessionManager
+import com.maritsa.app.data.remote.FcmTokenService
+import com.maritsa.app.domain.model.NotificationType
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Handles Firebase Cloud Messaging events:
+ *   • onNewToken   — saves fresh token to Firestore so Cloud Functions can deliver pushes
+ *   • onMessageReceived — shows a local system notification when the app is in foreground
+ *     (background delivery is handled automatically by FCM)
+ *
+ * Notification channels are created in [WedNowApplication.onCreate] so they exist before
+ * the first notification arrives.
+ */
+@AndroidEntryPoint
+class WedNowMessagingService : FirebaseMessagingService() {
+
+    @Inject
+    lateinit var fcmTokenService: FcmTokenService
+
+    @Inject
+    lateinit var identityManager: IdentityManager
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    companion object {
+        /** Notification data key constants (must match Cloud Functions). */
+        const val KEY_TITLE = "title"
+        const val KEY_BODY = "body"
+        const val KEY_TYPE = "type"
+        const val KEY_WEDDING_ID = "weddingId"
+        const val KEY_TARGET_ID = "targetId"
+        const val KEY_TARGET_SCREEN = "targetScreen"
+    }
+
+    // ── Token management ──────────────────────────────────────────────────────
+
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        val weddingId = WeddingSessionManager.getWeddingId(applicationContext) ?: return
+        val guestId = GuestSessionManager.getGuestId(applicationContext)
+        val identityId = identityManager.currentIdentityId
+        serviceScope.launch {
+            fcmTokenService.saveToken(weddingId, guestId, identityId, token)
+        }
+    }
+
+    // ── Message received (foreground) ─────────────────────────────────────────
+
+    override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        super.onMessageReceived(remoteMessage)
+
+        val data = remoteMessage.data
+        val title = data[KEY_TITLE] ?: remoteMessage.notification?.title ?: return
+        val body = data[KEY_BODY] ?: remoteMessage.notification?.body ?: return
+        val type = data[KEY_TYPE] ?: ""
+
+        showNotification(
+            title = title,
+            body = body,
+            type = type,
+            weddingId = data[KEY_WEDDING_ID].orEmpty(),
+            targetScreen = data[KEY_TARGET_SCREEN].orEmpty(),
+        )
+    }
+
+    // ── Show local notification ───────────────────────────────────────────────
+
+    private fun showNotification(
+        title: String,
+        body: String,
+        type: String,
+        weddingId: String,
+        targetScreen: String,
+    ) {
+        val channelId = if (type in NotificationType.highPriority) {
+            WedNowApplication.CHANNEL_HIGH
+        } else {
+            WedNowApplication.CHANNEL_MEDIUM
+        }
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra(KEY_WEDDING_ID, weddingId)
+            putExtra(KEY_TARGET_SCREEN, targetScreen)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            System.currentTimeMillis().toInt(),
+            intent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setSound(defaultSoundUri)
+            .setContentIntent(pendingIntent)
+            .setPriority(
+                if (type in NotificationType.highPriority) NotificationCompat.PRIORITY_HIGH
+                else NotificationCompat.PRIORITY_DEFAULT
+            )
+            .build()
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+    }
+}

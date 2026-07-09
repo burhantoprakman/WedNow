@@ -15,7 +15,7 @@ val localProps = Properties().apply {
 }
 
 android {
-    namespace = "com.wednowapp.wednow"
+    namespace = "com.maritsa.app"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -23,7 +23,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.wednowapp.wednow"
+        applicationId = "com.maritsa.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

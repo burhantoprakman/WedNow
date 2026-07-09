@@ -7,17 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:385203742580:android:ae955a82c7a6387d3bae21",
+        "mobilesdk_app_id": "1:385203742580:android:86becb25be720adc3bae21",
         "android_client_info": {
-          "package_name": "com.wednowapp.wednow"
+          "package_name": "com.maritsa.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "385203742580-gb6msv1k1h7jug6vuhi6c6634rvt37lj.apps.googleusercontent.com",
+          "client_id": "385203742580-6afe3g4hjh0pv0u4h78k59mee9vtjif4.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.wednowapp.wednow",
+            "package_name": "com.maritsa.app",
             "certificate_hash": "0b2c986afdc2afece1526ebd938cdab2e85dba0c"
           }
         },
@@ -37,6 +37,13 @@
             {
               "client_id": "385203742580-s74s2r5rhu5ipeq7ebc2ggblo0orcb05.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "385203742580-0ru9n08058lsmv888lvttasuiu1nk6b1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.wednow.app"
+              }
             }
           ]
         }
